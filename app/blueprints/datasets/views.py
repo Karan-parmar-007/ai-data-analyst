@@ -96,7 +96,7 @@ def update_dataset():
     return jsonify({"message": "Dataset updated successfully."}), 200
 
 
-@datasets_bp.route('delete_dataset', methods=['DELETE'])
+@datasets_bp.route('/delete_dataset', methods=['DELETE'])
 def delete_dataset():
     dataset_id = ObjectId(request.args.get('dataset_id'))
     user_id = ObjectId(request.args.get('user_id'))
@@ -110,3 +110,8 @@ def delete_dataset():
         return jsonify({"error": "Dataset not found or already deleted."}), 404
     return jsonify({"message": "Dataset deleted successfully."}), 200
 
+@datasets_bp.route('/get_dataset_column', methods=['GET'])
+def get_dataset_column():
+    dataset_id = request.args.get('dataset_id')
+    columns = dataset_model.get_column_names(dataset_id)
+    return jsonify({"columns": columns}), 200   

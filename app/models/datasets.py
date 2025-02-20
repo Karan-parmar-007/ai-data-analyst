@@ -1,6 +1,8 @@
 from bson import ObjectId
 from app.utils.db import db
 import gridfs
+from io import BytesIO
+import pandas as pd
 
 class DatasetModel:
     def __init__(self):
@@ -28,7 +30,9 @@ class DatasetModel:
             "remove_duplicate": True,
             "scaling_and_normalization": True,
             "test_dataset_percentage": 30,
-            "increase_the_size_of_dataset": False
+            "increase_the_size_of_dataset": False,
+            "Is_preprocessing_form_filled": False,
+            "is_preprocessing_done": False,
         }
 
         result = self.datasets_collection.insert_one(dataset)
@@ -118,3 +122,15 @@ class DatasetModel:
         """Fetch the dataset name based on dataset ID."""
         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"filename": 1})
         return dataset["filename"] if dataset else "Unknown Dataset"
+    
+    def get_column_names(self, dataset_id: str):
+        """Retrieve all column names from a dataset stored in GridFS."""
+        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
+        if not dataset:
+            raise ValueError("Dataset not found.")
+        
+        file_id = dataset["file_id"]
+        file_data = self.fs.get(file_id).read()
+        
+        df = pd.read_csv(BytesIO(file_data))
+        return df.columns.tolist()

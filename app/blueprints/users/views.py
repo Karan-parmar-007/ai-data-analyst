@@ -17,8 +17,12 @@ def create_user():
     if not email:
         return jsonify({"error": "Email is required."}), 400
 
-    user_id = user_model.create_user(name, email)
-    return jsonify({"message": "User created successfully.", "user_id": user_id}), 201
+    result = user_model.create_user(name, email)
+    
+    if "error" in result:
+        return jsonify(result), 400
+    
+    return jsonify({"message": "User created successfully.", "user_id": result["user_id"]}), 201
 
 @users_bp.route("/update-user-name", methods=["PUT"])
 def update_user_name():

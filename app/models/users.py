@@ -6,11 +6,15 @@ class UserModel:
         """Initialize the user manager with the users collection."""
         self.users_collection = db["users"]
 
-    def create_user(self, name: str, email: str) -> str:
-        """Create a new user with an empty datasets list."""
+    def create_user(self, name: str, email: str) -> dict:
+        """Create a new user if email does not already exist."""
+        existing_user = self.users_collection.find_one({"email": email})
+        if existing_user:
+            return {"error": "User with this email already exists."}
+        
         user = {"name": name, "email": email, "datasets": []}
         result = self.users_collection.insert_one(user)
-        return str(result.inserted_id)
+        return {"user_id": str(result.inserted_id)}
 
     def update_user_name(self, user_id: str, new_name: str) -> int:
         """Update the name of the user."""
