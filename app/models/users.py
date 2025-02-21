@@ -1,4 +1,6 @@
+import datetime
 from bson import ObjectId
+from flask import request, jsonify
 from app.utils.db import db
 
 class UserModel:
@@ -6,11 +8,52 @@ class UserModel:
         """Initialize the user manager with the users collection."""
         self.users_collection = db["users"]
 
-    def create_user(self, name: str, email: str) -> str:
-        """Create a new user with an empty datasets list."""
-        user = {"name": name, "email": email, "datasets": []}
+    # def create_user(self, name: str, email: str) -> str:
+    #     """Create a new user with an empty datasets list."""
+    #     user = {"name": name, "email": email, "datasets": []}
+    #     result = self.users_collection.insert_one(user)
+    #     return str(result.inserted_id)
+
+    def create_user(self, clerk_user_id: str, email: str, name: str = None) -> str:
+        """
+        Create a new user with Clerk authentication details.
+        
+        Args:
+            clerk_user_id: The user ID from Clerk authentication
+            email: User's email from Clerk
+            name: Optional user's name
+        """
+        # Check if user already exists
+        existing_user = self.users_collection.find_one({"clerk_user_id": clerk_user_id})
+        if existing_user:
+            return str(existing_user["_id"])
+
+        # Create new user document
+        user = {
+            "clerk_user_id": clerk_user_id,
+            "email": email,
+            "name": name,
+            "datasets": [],
+            # "created_at": datetime.UTC(),
+            # "last_login": datetime.UTC()
+        }
+        
         result = self.users_collection.insert_one(user)
         return str(result.inserted_id)
+
+    def get_user_by_clerk_id(self, clerk_user_id: str) -> dict:
+        """Fetch user details using Clerk user ID."""
+        user = self.users_collection.find_one({"clerk_user_id": clerk_user_id})
+        if not user:
+            return {}
+            
+        return {
+            "user_id": str(user["_id"]),
+            "clerk_user_id": user["clerk_user_id"],
+            "email": user["email"],
+            "name": user.get("name"),
+            "dataset_ids": [str(dataset_id) for dataset_id in user.get("datasets", [])]
+        }
 
     def update_user_name(self, user_id: str, new_name: str) -> int:
         """Update the name of the user."""

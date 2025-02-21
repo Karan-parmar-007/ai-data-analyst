@@ -10,7 +10,7 @@ def create_app():
 
 
     # Enable CORS
-    CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
+    CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
 
     # Register Blueprints
     from app.blueprints.users import users_bp
