@@ -22,6 +22,7 @@ class DatasetModel:
             "user_id": ObjectId(user_id),
             "file_id": file_id,
             "filename": project_name,
+            "dataset_description": "",
             "datatype_of_each_column": {},
             "usage_of_each_column": {},
             "type_of_analysis": "",
@@ -33,6 +34,8 @@ class DatasetModel:
             "increase_the_size_of_dataset": False,
             "Is_preprocessing_form_filled": False,
             "is_preprocessing_done": False,
+            "start_preprocessing": False,
+            "models": [],
         }
 
         result = self.datasets_collection.insert_one(dataset)
@@ -134,3 +137,8 @@ class DatasetModel:
         
         df = pd.read_csv(BytesIO(file_data))
         return df.columns.tolist()
+    
+    def get_preprocessing_status(self, dataset_id: str) -> bool:
+        """Check if the preprocessing form is filled for a dataset."""
+        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
+        return dataset.get("is_preprocessing_done", False)

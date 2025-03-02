@@ -8,7 +8,7 @@ from app.models.datasets import DatasetModel
 from app.models.users import UserModel
 import io
 from flask import Response, stream_with_context
-
+from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
 
 # Initialize DatasetManager
 dataset_model = DatasetModel()
@@ -95,7 +95,6 @@ def update_dataset():
 
     return jsonify({"message": "Dataset updated successfully."}), 200
 
-
 @datasets_bp.route('/delete_dataset', methods=['DELETE'])
 def delete_dataset():
     dataset_id = ObjectId(request.args.get('dataset_id'))
@@ -115,3 +114,48 @@ def get_dataset_column():
     dataset_id = request.args.get('dataset_id')
     columns = dataset_model.get_column_names(dataset_id)
     return jsonify({"columns": columns}), 200   
+
+@datasets_bp.route('/start_preprocessing', methods=['POST'])
+def start_preprocessing():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid or missing JSON data"}), 400
+
+    dataset_id = data.get("dataset_id")
+    update_fields = data.get("dataset_fields")
+
+    if not dataset_id or not update_fields:
+        return jsonify({"error": "Missing required fields: dataset_id, dataset_fields"}), 400
+
+    try:
+        dataset_id = ObjectId(dataset_id)
+    except errors.InvalidId:
+        return jsonify({"error": "Invalid dataset_id format"}), 400
+    
+    datasets_to_be_Preprocessed_model = DatasetsToBePreprocessedModel()
+    inserted_success = datasets_to_be_Preprocessed_model.create_dataset_to_be_preprocessed(dataset_id)
+
+    if not inserted_success:
+        return jsonify({"message": "wasn't able to set prrprocessing as True."}), 404
+
+    modified_count = dataset_model.update_dataset(dataset_id, update_fields)
+
+    if modified_count == 0:
+        return jsonify({"message": "wasn't able to set prrprocessing as True."}), 404
+
+    return jsonify({"message": "dataset will be preprocessed."}), 200
+
+@datasets_bp.route('/get_preprocessing_status', methods=['GET'])
+def get_preprocessing_status():
+    dataset_id = request.args.get('dataset_id')
+    status = dataset_model.get_preprocessing_status(dataset_id)
+    return jsonify({"status": status}), 200
+    
+
+    
+    
+    
+    
+
+
+
