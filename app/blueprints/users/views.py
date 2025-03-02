@@ -10,19 +10,20 @@ dataset_model = DatasetModel()
 @users_bp.route("/create-user", methods=["POST"])
 def create_user():
     data = request.get_json()
-    name = data.get("name")
-    email = data.get("email")
-    if not name:
-        return jsonify({"error": "Name is required."}), 400
+    clerk_user_id = data.get("userId")  # From Clerk
+    email = data.get("email")  # From Clerk
+    name = data.get("name")    # Optional
+
+    if not clerk_user_id:
+        return jsonify({"error": "User ID is required."}), 400
     if not email:
         return jsonify({"error": "Email is required."}), 400
 
-    result = user_model.create_user(name, email)
-    
-    if "error" in result:
-        return jsonify(result), 400
-    
-    return jsonify({"message": "User created successfully.", "user_id": result["user_id"]}), 201
+    user_id = user_model.create_user(clerk_user_id, email, name)
+    return jsonify({
+        "message": "User created successfully.",
+        "user_id": user_id
+    }), 201
 
 @users_bp.route("/update-user-name", methods=["PUT"])
 def update_user_name():
@@ -58,9 +59,6 @@ def update_user_email():
         return jsonify({"message": "User email updated successfully."}), 200
     return jsonify({"error": "User not found."}), 404
 
-
-
-
 @users_bp.route("/delete_user", methods=["DELETE"])
 def delete_user():
     user_id = request.args.get("user_id")
@@ -75,7 +73,6 @@ def delete_user():
             return jsonify({"message": "User deleted successfully."}), 200
         return jsonify({"error": "User not found."}), 404
     return jsonify({"error": "There is some error in the delete_datasets_by_user_id function"}), 404
-
 
 @users_bp.route('/get_user_details', methods=['GET'])
 def get_user_details():
@@ -102,6 +99,18 @@ def get_user_details():
     }
 
     return jsonify(response_data), 200
+
+@users_bp.route("/get-user", methods=["GET"])
+def get_user():
+    clerk_user_id = request.args.get("userId")
+    if not clerk_user_id:
+        return jsonify({"error": "User ID is required."}), 400
+
+    user_details = user_model.get_user_by_clerk_id(clerk_user_id)
+    if not user_details:
+        return jsonify({"error": "User not found."}), 404
+
+    return jsonify(user_details), 200
 
 
 

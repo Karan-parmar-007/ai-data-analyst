@@ -2,6 +2,7 @@ from app import create_app
 from dotenv import load_dotenv
 import os
 from flask import Flask
+from flask_cors import CORS
 
 
 # Load environment variables from .env file
@@ -12,7 +13,7 @@ app = Flask(__name__)
 
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-
+CORS(app, origins=["0.0.0.0"], supports_credentials=True)
 
 print("Starting application...")
 
