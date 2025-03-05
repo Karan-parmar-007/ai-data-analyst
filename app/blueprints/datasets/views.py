@@ -15,27 +15,53 @@ dataset_model = DatasetModel()
 user_model = UserModel()
 
 # API Endpoints
-@datasets_bp.route('/add_dataset', methods=['POST'])
+@datasets_bp.route("/add_dataset", methods=["POST"])
 def add_dataset():
+    print("Received add_dataset request")
+    user_id = request.form.get("user_id")
+    project_name = request.form.get("project_name")
+    file = request.files.get("file")
+
+    if not all([user_id, project_name, file]):
+        print("Missing fields:", {"user_id": user_id, "project_name": project_name, "file": file})
+        return jsonify({"error": "Missing required fields"}), 400
+
     try:
-        data = request.form
-        file = request.files['file']
-        user_id = data.get('user_id')
-        project_name = data.get('project_name')
+        user_id_obj = ObjectId(user_id)  # Convert to ObjectId for MongoDB
+        dataset_id = dataset_model.create_dataset(user_id, file, project_name)  # Returns string
+        dataset_id_obj = ObjectId(dataset_id)
+        print(f"Inserted dataset: {dataset_id}")
 
-        if not user_id or not project_name:
-            return jsonify({"error": "Missing required fields: user_id, project_name"}), 400
-
-
-        dataset_id = dataset_model.create_dataset(
-            user_id=data['user_id'],
-            file=file,
-            project_name= data['project_name'],
+        update_result = user_model.users_collection.update_one(
+            {"_id": user_id_obj},
+            {"$push": {"datasets": dataset_id_obj}}
         )
-        user_model.add_dataset(data['user_id'] ,dataset_id)
-        return jsonify({"message": "Dataset created successfully", "dataset_id": dataset_id}), 201
-    except Exception as e:
+        print(f"Update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
+
+        if update_result.matched_count == 0:
+            print(f"User with _id {user_id} not found")
+            return jsonify({"error": "User not found"}), 404
+
+        response = {
+            "_id": dataset_id,  # String
+            "filename": project_name,  # Matches your DatasetModel
+            "dataset_description": "",
+            "is_preprocessing_done": False,
+            "Is_preprocessing_form_filled": False,
+            "start_preprocessing": False,
+            "test_dataset_percentage": 30,  # Default from create_dataset
+            "remove_duplicate": True,  # Default from create_dataset
+            "scaling_and_normalization": True,  # Default from create_dataset
+            "increase_the_size_of_dataset": False,
+        }
+        print("Response:", response)
+        return jsonify(response), 200
+    except ValueError as e:
+        print(f"Validation error: {str(e)}")
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        print(f"Error in add_dataset: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @datasets_bp.route('/get_dataset', methods=['GET'])
 def get_dataset():

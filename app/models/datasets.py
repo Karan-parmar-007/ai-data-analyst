@@ -42,20 +42,28 @@ class DatasetModel:
         return str(result.inserted_id)
 
     def get_dataset(self, dataset_id: str) -> dict:
-        """Retrieve a dataset and its CSV file by dataset ID."""
-        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
-        if not dataset:
+        """Retrieve a dataset by its ID."""
+        try:
+            dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
+            if not dataset:
+                return {}
+
+            # Only include fields needed by frontend
+            return {
+                "_id": str(dataset["_id"]),
+                "filename": dataset["filename"],
+                "dataset_description": dataset.get("dataset_description", ""),
+                "is_preprocessing_done": dataset.get("is_preprocessing_done", False),
+                "Is_preprocessing_form_filled": dataset.get("Is_preprocessing_form_filled", False),
+                "start_preprocessing": dataset.get("start_preprocessing", False),
+                "test_dataset_percentage": dataset.get("test_dataset_percentage", 0),
+                "remove_duplicate": dataset.get("remove_duplicate", False),
+                "scaling_and_normalization": dataset.get("scaling_and_normalization", False),
+                "increase_the_size_of_dataset": dataset.get("increase_the_size_of_dataset", False)
+            }
+        except Exception as e:
+            print(f"Error fetching dataset {dataset_id}: {str(e)}")
             return {}
-
-        dataset["_id"] = str(dataset["_id"])
-        dataset["user_id"] = str(dataset["user_id"])
-        dataset["file_id"] = str(dataset["file_id"])
-
-        # Retrieve the file from GridFS
-        # grid_out = self.fs.get(ObjectId(dataset["file_id"]))
-        # dataset["file_content"] = grid_out.read().decode("utf-8")
-
-        return dataset
     
     def get_dataset_csv(self, dataset_id):
         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})

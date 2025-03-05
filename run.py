@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-CORS(app, origins=["0.0.0.0"], supports_credentials=True)
+CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
 
 print("Starting application...")
 

@@ -153,6 +153,7 @@ def get_user():
         if not user_details:
             return jsonify({"error": "User not found"}), 404
         return jsonify(user_details), 200
+    
     except Exception as e:
         logger.error(f"Error fetching user: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
