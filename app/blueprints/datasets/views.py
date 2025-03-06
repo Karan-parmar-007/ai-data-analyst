@@ -2,6 +2,8 @@ from app.blueprints.datasets import datasets_bp
 from flask import Flask, request, jsonify, send_file
 from bson import ObjectId, errors
 from app.utils.db import db
+import pandas as pd
+import sklearn
 import gridfs
 from io import BytesIO
 from app.models.datasets import DatasetModel
@@ -143,33 +145,81 @@ def get_dataset_column():
 
 @datasets_bp.route('/start_preprocessing', methods=['POST'])
 def start_preprocessing():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid or missing JSON data"}), 400
-
+    data = request.get_json() or {}
     dataset_id = data.get("dataset_id")
-    update_fields = data.get("dataset_fields")
+    missing_values = data.get("missing_values")
+    normalization = data.get("normalization")
 
-    if not dataset_id or not update_fields:
-        return jsonify({"error": "Missing required fields: dataset_id, dataset_fields"}), 400
+    if not dataset_id:
+        return jsonify({"error": "Dataset ID required"}), 400
 
     try:
-        dataset_id = ObjectId(dataset_id)
-    except errors.InvalidId:
-        return jsonify({"error": "Invalid dataset_id format"}), 400
-    
-    datasets_to_be_Preprocessed_model = DatasetsToBePreprocessedModel()
-    inserted_success = datasets_to_be_Preprocessed_model.create_dataset_to_be_preprocessed(dataset_id)
+        # Fetch dataset
+        dataset = dataset_model.get_dataset(dataset_id)
+        if not dataset:
+            return jsonify({"error": "Dataset not found"}), 404
 
-    if not inserted_success:
-        return jsonify({"message": "wasn't able to set prrprocessing as True."}), 404
+        print(f"Dataset fetched: {dataset}")  # Debug log
 
-    modified_count = dataset_model.update_dataset(dataset_id, update_fields)
+        # Check for file_id
+        if "file_id" not in dataset or not dataset["file_id"]:
+            return jsonify({"error": "Dataset missing file_id"}), 400
 
-    if modified_count == 0:
-        return jsonify({"message": "wasn't able to set prrprocessing as True."}), 404
+        # Fetch CSV data from GridFS
+        file_id = dataset["file_id"]
+        try:
+            grid_out = dataset_model.fs.get(ObjectId(file_id))
+        except Exception as e:
+            print(f"Error accessing GridFS file with file_id {file_id}: {str(e)}")
+            return jsonify({"error": f"Invalid file_id: {file_id}"}), 400
 
-    return jsonify({"message": "dataset will be preprocessed."}), 200
+        df = pd.read_csv(BytesIO(grid_out.read()))
+
+        # Apply preprocessing for missing values
+        if missing_values == "drop":
+            df = df.dropna()
+        elif missing_values == "mean":
+            df = df.fillna(df.mean(numeric_only=True))
+        elif missing_values == "median":
+            df = df.fillna(df.median(numeric_only=True))
+
+        # Apply normalization
+        if normalization == "minmax":
+            from sklearn.preprocessing import MinMaxScaler
+            scaler = MinMaxScaler()
+            numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+            df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+        elif normalization == "standard":
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+            df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+        elif normalization == "robust":
+            from sklearn.preprocessing import RobustScaler
+            scaler = RobustScaler()
+            numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+            df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+
+        # Save preprocessed data back to GridFS
+        preprocessed_csv = df.to_csv(index=False).encode("utf-8")
+        new_file_id = dataset_model.fs.put(preprocessed_csv, filename=dataset["filename"])
+
+        # Update dataset document
+        update_fields = {
+            "file_id": str(new_file_id),  # Store as string to match get_dataset
+            "is_preprocessing_done": True,
+            "Is_preprocessing_form_filled": True,
+            "start_preprocessing": False
+        }
+        dataset_model.update_dataset(dataset_id, update_fields)
+
+        # Fetch updated dataset
+        updated_dataset = dataset_model.get_dataset(dataset_id)
+        print(f"Updated dataset: {updated_dataset}")  # Debug log
+        return jsonify(updated_dataset), 200
+    except Exception as e:
+        print(f"Error preprocessing dataset {dataset_id}: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @datasets_bp.route('/get_preprocessing_status', methods=['GET'])
 def get_preprocessing_status():

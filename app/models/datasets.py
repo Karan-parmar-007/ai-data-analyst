@@ -42,15 +42,14 @@ class DatasetModel:
         return str(result.inserted_id)
 
     def get_dataset(self, dataset_id: str) -> dict:
-        """Retrieve a dataset by its ID."""
         try:
             dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
             if not dataset:
                 return {}
-
-            # Only include fields needed by frontend
             return {
                 "_id": str(dataset["_id"]),
+                "user_id": str(dataset["user_id"]),
+                "file_id": str(dataset["file_id"]),  # This line assumes file_id exists
                 "filename": dataset["filename"],
                 "dataset_description": dataset.get("dataset_description", ""),
                 "is_preprocessing_done": dataset.get("is_preprocessing_done", False),
