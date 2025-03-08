@@ -245,96 +245,98 @@ def get_preprocessing_status():
     status = dataset_model.get_preprocessing_status(dataset_id)
     return jsonify({"status": status}), 200
     
-@datasets_bp.route('/visualize', methods=['POST'])
-def visualize():
-    data = request.get_json() or {}
-    dataset_id = data.get("dataset_id")
-    chart_type = data.get("chart_type")
-    x_axis = data.get("x_axis")
-    y_axis = data.get("y_axis")
+# Dataset Saving routes currently removed (will be reactivated if needed)
 
-    if not all([dataset_id, chart_type, x_axis, y_axis]):
-        return jsonify({"error": "Missing required fields: dataset_id, chart_type, x_axis, y_axis"}), 400
+# @datasets_bp.route('/visualize', methods=['POST'])
+# def visualize():
+#     data = request.get_json() or {}
+#     dataset_id = data.get("dataset_id")
+#     chart_type = data.get("chart_type")
+#     x_axis = data.get("x_axis")
+#     y_axis = data.get("y_axis")
 
-    try:
-        dataset = dataset_model.get_dataset(dataset_id)
-        if not dataset:
-            return jsonify({"error": "Dataset not found"}), 404
+#     if not all([dataset_id, chart_type, x_axis, y_axis]):
+#         return jsonify({"error": "Missing required fields: dataset_id, chart_type, x_axis, y_axis"}), 400
 
-        if "file_id" not in dataset or not dataset["file_id"]:
-            return jsonify({"error": "Dataset missing file_id"}), 400
+#     try:
+#         dataset = dataset_model.get_dataset(dataset_id)
+#         if not dataset:
+#             return jsonify({"error": "Dataset not found"}), 404
 
-        file_id = dataset["file_id"]
-        grid_out = dataset_model.fs.get(ObjectId(file_id))
-        df = pd.read_csv(BytesIO(grid_out.read()))
-        print(f"Dataset columns: {df.columns.tolist()}")
+#         if "file_id" not in dataset or not dataset["file_id"]:
+#             return jsonify({"error": "Dataset missing file_id"}), 400
 
-        if x_axis not in df.columns or y_axis not in df.columns:
-            return jsonify({"error": f"Columns {x_axis} or {y_axis} not found in dataset"}), 400
+#         file_id = dataset["file_id"]
+#         grid_out = dataset_model.fs.get(ObjectId(file_id))
+#         df = pd.read_csv(BytesIO(grid_out.read()))
+#         print(f"Dataset columns: {df.columns.tolist()}")
 
-        x_data = df[x_axis].dropna().tolist()
-        y_data = df[y_axis].dropna().tolist()
-        print(f"x_data: {x_data}")
-        print(f"y_data: {y_data}")
+#         if x_axis not in df.columns or y_axis not in df.columns:
+#             return jsonify({"error": f"Columns {x_axis} or {y_axis} not found in dataset"}), 400
 
-        if not x_data or not y_data:
-            return jsonify({"error": f"No valid data in columns {x_axis} or {y_axis} after removing NaN"}), 400
+#         x_data = df[x_axis].dropna().tolist()
+#         y_data = df[y_axis].dropna().tolist()
+#         print(f"x_data: {x_data}")
+#         print(f"y_data: {y_data}")
 
-        if chart_type == "scatter":
-            min_length = min(len(x_data), len(y_data))
-            x_data = x_data[:min_length]
-            y_data = y_data[:min_length]
+#         if not x_data or not y_data:
+#             return jsonify({"error": f"No valid data in columns {x_axis} or {y_axis} after removing NaN"}), 400
 
-        return jsonify({"x_data": x_data, "y_data": y_data}), 200
-    except Exception as e:
-        print(f"Error generating visualization for dataset {dataset_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+#         if chart_type == "scatter":
+#             min_length = min(len(x_data), len(y_data))
+#             x_data = x_data[:min_length]
+#             y_data = y_data[:min_length]
+
+#         return jsonify({"x_data": x_data, "y_data": y_data}), 200
+#     except Exception as e:
+#         print(f"Error generating visualization for dataset {dataset_id}: {str(e)}")
+#         return jsonify({"error": str(e)}), 500
     
-@datasets_bp.route('/save_visualization', methods=['POST'])
-def save_visualization():
-    try:
-        data = request.get_json()
-        dataset_id = data.get("dataset_id")
-        if not dataset_id:
-            return jsonify({"error": "dataset_id is required"}), 400
+# @datasets_bp.route('/save_visualization', methods=['POST'])
+# def save_visualization():
+#     try:
+#         data = request.get_json()
+#         dataset_id = data.get("dataset_id")
+#         if not dataset_id:
+#             return jsonify({"error": "dataset_id is required"}), 400
         
-        chart_id = dataset_model.save_chart(dataset_id, {
-            "chart_type": data["chart_type"],
-            "x_axis": data["x_axis"],
-            "y_axis": data["y_axis"],
-            "chart_data": data["chart_data"]
-        })
-        return jsonify({"chart_id": chart_id, "message": "Chart saved successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#         chart_id = dataset_model.save_chart(dataset_id, {
+#             "chart_type": data["chart_type"],
+#             "x_axis": data["x_axis"],
+#             "y_axis": data["y_axis"],
+#             "chart_data": data["chart_data"]
+#         })
+#         return jsonify({"chart_id": chart_id, "message": "Chart saved successfully"}), 200
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
-@datasets_bp.route('/get_saved_charts', methods=['GET'])
-def get_saved_charts():
-    try:
-        dataset_id = request.args.get('dataset_id')
-        if not dataset_id:
-            return jsonify({"error": "dataset_id is required"}), 400
+# @datasets_bp.route('/get_saved_charts', methods=['GET'])
+# def get_saved_charts():
+#     try:
+#         dataset_id = request.args.get('dataset_id')
+#         if not dataset_id:
+#             return jsonify({"error": "dataset_id is required"}), 400
         
-        charts = dataset_model.get_saved_charts(dataset_id)
-        return jsonify(charts), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#         charts = dataset_model.get_saved_charts(dataset_id)
+#         return jsonify(charts), 200
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
     
-@datasets_bp.route('/delete_chart', methods=['DELETE'])
-def delete_chart():
-    try:
-        dataset_id = request.args.get('dataset_id')
-        chart_id = request.args.get('chart_id')
-        if not dataset_id or not chart_id:
-            return jsonify({"error": "dataset_id and chart_id are required"}), 400
+# @datasets_bp.route('/delete_chart', methods=['DELETE'])
+# def delete_chart():
+#     try:
+#         dataset_id = request.args.get('dataset_id')
+#         chart_id = request.args.get('chart_id')
+#         if not dataset_id or not chart_id:
+#             return jsonify({"error": "dataset_id and chart_id are required"}), 400
         
-        deleted_count = dataset_model.delete_chart(dataset_id, chart_id)
-        if deleted_count == 0:
-            return jsonify({"error": "Chart not found or already deleted"}), 404
+#         deleted_count = dataset_model.delete_chart(dataset_id, chart_id)
+#         if deleted_count == 0:
+#             return jsonify({"error": "Chart not found or already deleted"}), 404
         
-        return jsonify({"message": "Chart deleted successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#         return jsonify({"message": "Chart deleted successfully"}), 200
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
     
     

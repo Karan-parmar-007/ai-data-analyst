@@ -15,10 +15,11 @@ def create_app():
     # Register Blueprints
     from app.blueprints.users import users_bp
     from app.blueprints.datasets import datasets_bp
+    from app.blueprints.model_building import model_building_bp
 
     app.register_blueprint(users_bp, url_prefix='/user')
     app.register_blueprint(datasets_bp, url_prefix='/dataset')
-
+    app.register_blueprint(model_building_bp, url_prefix='/model')
 
 
     print("Registered URLs:")

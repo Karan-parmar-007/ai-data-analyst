@@ -167,51 +167,53 @@ class DatasetModel:
         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
         return dataset.get("is_preprocessing_done", False)
     
-    def save_chart(self, dataset_id: str, chart_data: dict) -> str:
-        """Save a chart configuration to the dataset document."""
-        try:
-            # Generate a unique chart ID (could use ObjectId or a simpler counter)
-            chart_id = str(ObjectId())
-            chart_entry = {
-                "chart_id": chart_id,
-                "chart_type": chart_data["chart_type"],
-                "x_axis": chart_data["x_axis"],
-                "y_axis": chart_data["y_axis"],
-                "chart_data": chart_data["chart_data"]  # The actual chart configuration
-            }
+    # Dataset Saving routes currently removed (will be reactivated if needed)
+    
+    # def save_chart(self, dataset_id: str, chart_data: dict) -> str:
+    #     """Save a chart configuration to the dataset document."""
+    #     try:
+    #         # Generate a unique chart ID (could use ObjectId or a simpler counter)
+    #         chart_id = str(ObjectId())
+    #         chart_entry = {
+    #             "chart_id": chart_id,
+    #             "chart_type": chart_data["chart_type"],
+    #             "x_axis": chart_data["x_axis"],
+    #             "y_axis": chart_data["y_axis"],
+    #             "chart_data": chart_data["chart_data"]  # The actual chart configuration
+    #         }
             
-            # Add the chart to the dataset's charts array (create array if it doesn't exist)
-            result = self.datasets_collection.update_one(
-                {"_id": ObjectId(dataset_id)},
-                {"$push": {"charts": chart_entry}},
-                upsert=True
-            )
-            if result.modified_count == 0 and result.upserted_id is None:
-                raise ValueError("Failed to save chart: dataset not found or update failed")
-            return chart_id
-        except Exception as e:
-            print(f"Error saving chart for dataset {dataset_id}: {str(e)}")
-            raise
+    #         # Add the chart to the dataset's charts array (create array if it doesn't exist)
+    #         result = self.datasets_collection.update_one(
+    #             {"_id": ObjectId(dataset_id)},
+    #             {"$push": {"charts": chart_entry}},
+    #             upsert=True
+    #         )
+    #         if result.modified_count == 0 and result.upserted_id is None:
+    #             raise ValueError("Failed to save chart: dataset not found or update failed")
+    #         return chart_id
+    #     except Exception as e:
+    #         print(f"Error saving chart for dataset {dataset_id}: {str(e)}")
+    #         raise
 
-    def get_saved_charts(self, dataset_id: str) -> list:
-        """Retrieve all saved charts for a dataset."""
-        try:
-            dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"charts": 1})
-            if not dataset or "charts" not in dataset:
-                return []
-            return dataset["charts"]
-        except Exception as e:
-            print(f"Error fetching charts for dataset {dataset_id}: {str(e)}")
-            return []
+    # def get_saved_charts(self, dataset_id: str) -> list:
+    #     """Retrieve all saved charts for a dataset."""
+    #     try:
+    #         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"charts": 1})
+    #         if not dataset or "charts" not in dataset:
+    #             return []
+    #         return dataset["charts"]
+    #     except Exception as e:
+    #         print(f"Error fetching charts for dataset {dataset_id}: {str(e)}")
+    #         return []
         
-    def delete_chart(self, dataset_id: str, chart_id: str) -> int:
-        """Delete a specific chart from the dataset's charts array."""
-        try:
-            result = self.datasets_collection.update_one(
-                {"_id": ObjectId(dataset_id)},
-                {"$pull": {"charts": {"chart_id": chart_id}}}
-            )
-            return result.modified_count  # Returns 1 if a chart was removed, 0 if not found
-        except Exception as e:
-            print(f"Error deleting chart {chart_id} from dataset {dataset_id}: {str(e)}")
-            raise
+    # def delete_chart(self, dataset_id: str, chart_id: str) -> int:
+    #     """Delete a specific chart from the dataset's charts array."""
+    #     try:
+    #         result = self.datasets_collection.update_one(
+    #             {"_id": ObjectId(dataset_id)},
+    #             {"$pull": {"charts": {"chart_id": chart_id}}}
+    #         )
+    #         return result.modified_count  # Returns 1 if a chart was removed, 0 if not found
+    #     except Exception as e:
+    #         print(f"Error deleting chart {chart_id} from dataset {dataset_id}: {str(e)}")
+    #         raise
