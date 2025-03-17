@@ -36,6 +36,7 @@ class DatasetModel:
             "is_preprocessing_done": False,
             "start_preprocessing": False,
             "models": [],
+            "fill_string_type_columns": False,
         }
 
         result = self.datasets_collection.insert_one(dataset)
@@ -167,53 +168,36 @@ class DatasetModel:
         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
         return dataset.get("is_preprocessing_done", False)
     
-    # Dataset Saving routes currently removed (will be reactivated if needed)
-    
-    # def save_chart(self, dataset_id: str, chart_data: dict) -> str:
-    #     """Save a chart configuration to the dataset document."""
-    #     try:
-    #         # Generate a unique chart ID (could use ObjectId or a simpler counter)
-    #         chart_id = str(ObjectId())
-    #         chart_entry = {
-    #             "chart_id": chart_id,
-    #             "chart_type": chart_data["chart_type"],
-    #             "x_axis": chart_data["x_axis"],
-    #             "y_axis": chart_data["y_axis"],
-    #             "chart_data": chart_data["chart_data"]  # The actual chart configuration
-    #         }
-            
-    #         # Add the chart to the dataset's charts array (create array if it doesn't exist)
-    #         result = self.datasets_collection.update_one(
-    #             {"_id": ObjectId(dataset_id)},
-    #             {"$push": {"charts": chart_entry}},
-    #             upsert=True
-    #         )
-    #         if result.modified_count == 0 and result.upserted_id is None:
-    #             raise ValueError("Failed to save chart: dataset not found or update failed")
-    #         return chart_id
-    #     except Exception as e:
-    #         print(f"Error saving chart for dataset {dataset_id}: {str(e)}")
-    #         raise
-
-    # def get_saved_charts(self, dataset_id: str) -> list:
-    #     """Retrieve all saved charts for a dataset."""
-    #     try:
-    #         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"charts": 1})
-    #         if not dataset or "charts" not in dataset:
-    #             return []
-    #         return dataset["charts"]
-    #     except Exception as e:
-    #         print(f"Error fetching charts for dataset {dataset_id}: {str(e)}")
-    #         return []
+    def update_dataset_file(self, dataset_id: str, new_df: pd.DataFrame, is_preprocessing_done: str) -> None:
+        """Update the dataset file with the preprocessed DataFrame and set is_preprocessing_done to True."""
+        from io import BytesIO
+        from bson import ObjectId
         
-    # def delete_chart(self, dataset_id: str, chart_id: str) -> int:
-    #     """Delete a specific chart from the dataset's charts array."""
-    #     try:
-    #         result = self.datasets_collection.update_one(
-    #             {"_id": ObjectId(dataset_id)},
-    #             {"$pull": {"charts": {"chart_id": chart_id}}}
-    #         )
-    #         return result.modified_count  # Returns 1 if a chart was removed, 0 if not found
-    #     except Exception as e:
-    #         print(f"Error deleting chart {chart_id} from dataset {dataset_id}: {str(e)}")
-    #         raise
+        # Convert DataFrame to CSV in memory
+        csv_buffer = BytesIO()
+        new_df.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)
+        
+        # Upload new file to GridFS
+        new_file_id = self.fs.put(csv_buffer, filename=f"{dataset_id}_preprocessed.csv")
+        
+        # Get the current dataset to retrieve the old file_id
+        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
+        if not dataset:
+            raise ValueError("Dataset not found.")
+        
+        old_file_id = dataset.get("file_id")
+        
+        # Update the dataset document with new file_id and set is_preprocessing_done to True
+        update_fields = {
+            "file_id": new_file_id,
+            "is_preprocessing_done": is_preprocessing_done
+        }
+        self.datasets_collection.update_one(
+            {"_id": ObjectId(dataset_id)},
+            {"$set": update_fields}
+        )
+        
+        # Delete the old file from GridFS if it exists
+        if old_file_id:
+            self.fs.delete(old_file_id)

@@ -20,17 +20,10 @@ class DatasetsToBePreprocessedModel:
 
     def get_unprocessed_datasets(self) -> list:
         """Retrieve all datasets that have not been preprocessed yet."""
-        unprocessed_datasets = list(self.datasets_to_be_preprocessed_collection.find(
-            {"is_preprocessing_done": False}
-        ))
-        return [str(dataset["_id"]) for dataset in unprocessed_datasets]  # Return list of dataset IDs
+        datasets_to_be_preprocessed = list(self.datasets_to_be_preprocessed_collection.find())
+        return [str(dataset["dataset_id"]) for dataset in datasets_to_be_preprocessed]
     
     def delete_dataset_to_be_preprocessed(self, dataset_id: str):
-        """Mark a dataset as preprocessed instead of deleting an entry."""
-        result = self.datasets_to_be_preprocessed_collection.update_one(
-            {"_id": ObjectId(dataset_id)},
-            {"$set": {"is_preprocessing_done": True}}  # Mark as preprocessed
-        )
-        if result.matched_count == 0:
-            raise ValueError(f"Dataset {dataset_id} not found")
+        """Delete a dataset to be preprocessed entry."""
+        self.datasets_to_be_preprocessed_collection.delete_one({"dataset_id": ObjectId(dataset_id)})
         return True

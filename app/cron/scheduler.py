@@ -1,31 +1,12 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
 from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
-from app.utils.dataset_preprocessing import DatasetPreprocessing
+from app.utils.column_conversion import ColumnConversion
+from app.utils.handle_null_values import HandleNullValues
+from app.utils.remove_duplicates import RemoveDuplicates
 from datetime import datetime
 
 _scheduler = None 
-
-
-# def preprocess_dataset():
-#     """Job to process new unprocessed emails."""
-#     print(f"[{datetime.now()}] Starting process_new_emails job...")
-#     try:
-#         # Initialize the DatasetPreprocessing class
-#         dataset_preprocessing = DatasetPreprocessing()
-#         datasets_to_be_preprocessed_model = DatasetsToBePreprocessedModel()
-
-#         # Get all unprocessed datasets
-#         unprocessed_datasets = datasets_to_be_preprocessed_model.get_unprocessed_datasets()
-#         print(f"[{datetime.now()}] Found {len(unprocessed_datasets)} unprocessed datasets")
-#         for dataset in unprocessed_datasets:
-#             # Preprocess the dataset
-#             dataset_preprocessing.main(dataset)
-#             # Delete the dataset from the unprocessed list
-#             datasets_to_be_preprocessed_model.delete_dataset_to_be_preprocessed(dataset)
-#         print(f"[{datetime.now()}] process_new_emails job completed successfully")
-#     except Exception as e:
-#         print(f"[{datetime.now()}] Error in process_new_emails job: {str(e)}")
 
 def preprocess_dataset():
     """Job to process new unprocessed datasets."""
@@ -41,9 +22,26 @@ def preprocess_dataset():
         for dataset_id in unprocessed_datasets:  # Directly use the ID string
             try:
                 # Initialize DatasetPreprocessing with the dataset ID
-                dataset_preprocessing = DatasetPreprocessing(dataset_id=dataset_id)
+                process_column = ColumnConversion(dataset_id=dataset_id)
                 # Preprocess the dataset
-                dataset_preprocessing.main()
+                status_of_column_processing = process_column.main()
+
+                if not status_of_column_processing:
+                    print(f"Error processing dataset {dataset_id}")
+                    continue
+                
+                handle_null_values = HandleNullValues(dataset_id=dataset_id)
+                status_of_null_values_removed = handle_null_values.main()
+                if not status_of_null_values_removed:
+                    print(f"Error processing dataset {dataset_id}")
+                    continue
+
+                remove_duplicates = RemoveDuplicates(dataset_id=dataset_id)
+                status_of_duplicates_removed = remove_duplicates.main()
+                if not status_of_duplicates_removed:
+                    print(f"Error processing dataset {dataset_id}")
+                    continue    
+
                 # Delete the dataset from the unprocessed list
                 datasets_to_be_preprocessed_model.delete_dataset_to_be_preprocessed(dataset_id)
             except Exception as e:
@@ -85,3 +83,5 @@ def init_scheduler(app):
     # Shut down scheduler when app terminates
     import atexit
     atexit.register(lambda: _scheduler.shutdown(wait=False))
+
+
