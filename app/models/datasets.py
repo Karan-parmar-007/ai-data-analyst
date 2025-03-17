@@ -77,7 +77,7 @@ class DatasetModel:
         """Update specific fields of a dataset."""
         result = self.datasets_collection.update_one(
             {"_id": ObjectId(dataset_id)},
-            {"$set": update_fields}
+            update_fields,
         )
         return result.modified_count
 
@@ -175,36 +175,43 @@ class DatasetModel:
             {"$set": {"is_preprocessing_done": is_preprocessing_done}}
         )
     
-    def update_dataset_file(self, dataset_id: str, new_df: pd.DataFrame, is_preprocessing_done: str) -> None:
-        """Update the dataset file with the preprocessed DataFrame and set is_preprocessing_done to True."""
+    # In app/models/datasets.py
+    def update_dataset_file(self, dataset_id: str, new_df: pd.DataFrame, is_preprocessing_done: bool) -> None:
+        """Update the dataset file with the preprocessed DataFrame and set is_preprocessing_done."""
         from io import BytesIO
         from bson import ObjectId
         
-        # Convert DataFrame to CSV in memory
-        csv_buffer = BytesIO()
-        new_df.to_csv(csv_buffer, index=False)
-        csv_buffer.seek(0)
-        
-        # Upload new file to GridFS
-        new_file_id = self.fs.put(csv_buffer, filename=f"{dataset_id}_preprocessed.csv")
-        
-        # Get the current dataset to retrieve the old file_id
-        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
-        if not dataset:
-            raise ValueError("Dataset not found.")
-        
-        old_file_id = dataset.get("file_id")
-        
-        # Update the dataset document with new file_id and set is_preprocessing_done to True
-        update_fields = {
-            "file_id": new_file_id,
-            "is_preprocessing_done": is_preprocessing_done
-        }
-        self.datasets_collection.update_one(
-            {"_id": ObjectId(dataset_id)},
-            {"$set": update_fields}
-        )
-        
-        # Delete the old file from GridFS if it exists
-        if old_file_id:
-            self.fs.delete(old_file_id)
+        try:
+            # Convert DataFrame to CSV in memory
+            csv_buffer = BytesIO()
+            new_df.to_csv(csv_buffer, index=False)
+            csv_buffer.seek(0)
+            
+            # Upload new file to GridFS
+            new_file_id = self.fs.put(csv_buffer, filename=f"{dataset_id}_preprocessed.csv")
+            
+            # Get the current dataset to retrieve the old file_id
+            dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
+            if not dataset:
+                raise ValueError("Dataset not found.")
+            
+            old_file_id = dataset.get("file_id")
+            
+            # Update the dataset document with new file_id and is_preprocessing_done
+            update_fields = {
+                "file_id": new_file_id,
+                "is_preprocessing_done": is_preprocessing_done
+            }
+            result = self.datasets_collection.update_one(
+                {"_id": ObjectId(dataset_id)},
+                {"$set": update_fields}
+            )
+            if result.modified_count == 0:
+                print(f"Warning: No documents updated for dataset_id {dataset_id}")  # Debug
+            
+            # Delete the old file from GridFS if it exists
+            if old_file_id:
+                self.fs.delete(old_file_id)
+        except Exception as e:
+            print(f"Error in update_dataset_file for {dataset_id}: {str(e)}")  # Debug
+            raise  # Re-raise to catch in cron job

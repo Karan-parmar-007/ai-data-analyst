@@ -11,10 +11,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPClassifier
-from sklearn.impute import SimpleImputer  # Added for NaN handling
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
 import json
+from datetime import datetime
 
 # Initialize DatasetModel
 dataset_model = DatasetModel()
@@ -33,21 +34,18 @@ def preprocess_dataset(df: pd.DataFrame, target_column: str = None) -> tuple:
         X = df.drop(columns=[target_column])
         y = df[target_column]
     else:
-        X = df  # For unsupervised learning like KMeans
+        X = df
         y = None
     
-    # Convert categorical columns to numeric
     label_encoders = {}
     for column in X.columns:
         if X[column].dtype == 'object' or X[column].dtype.name == 'category':
             label_encoders[column] = LabelEncoder()
             X[column] = label_encoders[column].fit_transform(X[column].astype(str))
     
-    # Impute NaN values
-    imputer = SimpleImputer(strategy='mean')  # Use mean for numeric columns
+    imputer = SimpleImputer(strategy='mean')
     X = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
     
-    # Ensure all columns are numeric
     X = X.astype(float)
     
     if y is not None and (y.dtype == 'object' or y.dtype.name == 'category'):
@@ -60,7 +58,7 @@ def train_model(model_type: str, X_train, X_test, y_train, y_test, hyperparamete
     if model_type == "linear_regression":
         model = LinearRegression()
     elif model_type == "logistic_regression":
-        model = LogisticRegression(C=1/hyperparameters.get("regularization", 0.1))
+        model = LogisticRegression(C=1/hyperparameters.get("regularization", 0.1), max_iter=200)
     elif model_type == "decision_tree":
         model = DecisionTreeClassifier()
     elif model_type == "random_forest":
@@ -78,21 +76,23 @@ def train_model(model_type: str, X_train, X_test, y_train, y_test, hyperparamete
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
-    # Fit the model
     if model_type in ["kmeans", "pca"]:
-        model.fit(X_train)  # Unsupervised
+        model.fit(X_train)
     else:
-        model.fit(X_train, y_train)  # Supervised
+        model.fit(X_train, y_train)
 
-    # Generate metrics
     metrics = {}
-    if model_type not in ["kmeans", "pca"]:
+    if model_type == "linear_regression":
+        y_pred = model.predict(X_test)
+        metrics["mse"] = float(np.mean((y_pred - y_test) ** 2))  # Mean Squared Error
+        metrics["r2"] = float(model.score(X_test, y_test))  # R-squared
+    elif model_type in ["logistic_regression", "decision_tree", "random_forest", "mlp"]:
         y_pred = model.predict(X_test)
         metrics["accuracy"] = float(np.mean(y_pred == y_test))
     elif model_type == "kmeans":
         metrics["inertia"] = float(model.inertia_)
     elif model_type == "pca":
-        metrics["explained_variance"] = float(np.sum(model.explain_variance_ratio_))
+        metrics["explained_variance"] = float(np.sum(model.explained_variance_ratio_))
 
     return model, metrics
 
@@ -136,19 +136,14 @@ def train_model_route():
         if model_type not in ["kmeans", "pca"] and not target_column:
             return jsonify({"error": "targetColumn is required for supervised models"}), 400
 
-        # Load dataset
         df = load_dataset(dataset_id)
-        
-        # Preprocess dataset
         X, y = preprocess_dataset(df, target_column if model_type not in ["kmeans", "pca"] else None)
 
-        # Split data (for supervised models only)
         if model_type not in ["kmeans", "pca"]:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         else:
             X_train, X_test, y_train, y_test = X, None, None, None
 
-        # Train model
         model, metrics = train_model(model_type, X_train, X_test, y_train, y_test, hyperparameters)
 
         job_id = str(ObjectId())
@@ -159,6 +154,17 @@ def train_model_route():
             "epochs": list(range(1, 11)),
             "loss": [1.0 / (i + 1) + np.random.random() * 0.1 for i in range(10)]
         }
+
+        model_entry = {
+            "job_id": job_id,
+            "model_type": model_type,
+            "metrics": metrics,
+            "hyperparameters": hyperparameters,
+            "target_column": target_column if target_column else None,
+            "timestamp": datetime.utcnow()
+        }
+        dataset_model.update_dataset(dataset_id, {"$push": {"models": model_entry}})
+
         return jsonify({"jobId": job_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -172,19 +178,26 @@ def visualize_model():
         if not job_id:
             return jsonify({"error": "jobId is required"}), 400
 
+        dataset = dataset_model.datasets_collection.find_one({"models.job_id": job_id})
+        if not dataset:
+            return jsonify({"error": "Model not found"}), 404
+
+        model_entry = next((m for m in dataset["models"] if m["job_id"] == job_id), None)
+        if not model_entry:
+            return jsonify({"error": "Model entry not found"}), 404
+
+        metrics = model_entry["metrics"]
         epochs = list(range(1, 11))
         loss = [1.0 / (i + 1) + np.random.random() * 0.1 for i in range(10)]
-        metrics = {
-            "accuracy": np.random.uniform(0.7, 0.95),
-            "precision": np.random.uniform(0.65, 0.9),
-            "recall": np.random.uniform(0.6, 0.85),
-        }
+
         viz_data = {
             "epochs": epochs,
             "loss": loss,
-            "accuracy": metrics["accuracy"],
-            "precision": metrics["precision"],
-            "recall": metrics["recall"],
+            "accuracy": metrics.get("accuracy", None),
+            "mse": metrics.get("mse", None),
+            "r2": metrics.get("r2", None),
+            "inertia": metrics.get("inertia", None),
+            "explained_variance": metrics.get("explained_variance", None)
         }
         return jsonify(viz_data), 200
     except Exception as e:
