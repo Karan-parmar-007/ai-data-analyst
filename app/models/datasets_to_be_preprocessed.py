@@ -3,15 +3,34 @@ from app.utils.db import db
 
 class DatasetsToBePreprocessedModel:
     def __init__(self):
-        """Initialize the datasets to be preprocessed manager with the datasets_to_be_preprocessed collection."""
-        self.datasets_to_be_preprocessed_collection = db["datasets_to_be_preprocessed"]
+        """Initialize the datasets to be preprocessed manager with the datasets collection."""
+        self.datasets_to_be_preprocessed_collection = db["datasets"]  # Changed to use 'datasets' collection
 
     def create_dataset_to_be_preprocessed(self, dataset_id: str) -> str:
-        """Create a new dataset to be preprocessed entry."""
-        dataset_to_be_preprocessed = {
-            "dataset_id": ObjectId(dataset_id),
-        }
+        """Mark an existing dataset as needing preprocessing by ensuring is_preprocessing_done is False."""
+        # Instead of creating a new entry, update the existing dataset to ensure preprocessing is pending
+        result = self.datasets_to_be_preprocessed_collection.update_one(
+            {"_id": ObjectId(dataset_id)},
+            {"$set": {"is_preprocessing_done": False}},  # Ensure preprocessing flag is False
+            upsert=False  # Don't create a new dataset, assume it exists
+        )
+        if result.matched_count == 0:
+            raise ValueError(f"Dataset {dataset_id} not found")
+        return dataset_id  # Return the dataset_id instead of a new inserted_id
 
-        result = self.datasets_to_be_preprocessed_collection.insert_one(dataset_to_be_preprocessed)
-        return str(result.inserted_id)
-
+    def get_unprocessed_datasets(self) -> list:
+        """Retrieve all datasets that have not been preprocessed yet."""
+        unprocessed_datasets = list(self.datasets_to_be_preprocessed_collection.find(
+            {"is_preprocessing_done": False}
+        ))
+        return [str(dataset["_id"]) for dataset in unprocessed_datasets]  # Return list of dataset IDs
+    
+    def delete_dataset_to_be_preprocessed(self, dataset_id: str):
+        """Mark a dataset as preprocessed instead of deleting an entry."""
+        result = self.datasets_to_be_preprocessed_collection.update_one(
+            {"_id": ObjectId(dataset_id)},
+            {"$set": {"is_preprocessing_done": True}}  # Mark as preprocessed
+        )
+        if result.matched_count == 0:
+            raise ValueError(f"Dataset {dataset_id} not found")
+        return True

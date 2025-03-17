@@ -22,6 +22,9 @@ dataset_model = DatasetModel()
 # Helper function to load dataset from GridFS
 def load_dataset(dataset_id: str) -> pd.DataFrame:
     grid_out = dataset_model.get_dataset_csv(dataset_id)
+    dataset_details = dataset_model.get_dataset(dataset_id)
+    if dataset_details.get("is_preprocessing_done") and "preprocessed_file_id" in dataset_details:
+        grid_out = dataset_model.fs.get(dataset_details["preprocessed_file_id"])
     return pd.read_csv(BytesIO(grid_out.read()))
 
 # Helper function to train a model and return metrics
