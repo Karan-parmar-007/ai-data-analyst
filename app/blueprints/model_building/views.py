@@ -11,10 +11,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPClassifier
+from sklearn.impute import SimpleImputer  # Added for NaN handling
+from sklearn.preprocessing import LabelEncoder
 import numpy as np
 import json
-
-# model_building = Blueprint('model_building', __name__, url_prefix='/api')
 
 # Initialize DatasetModel
 dataset_model = DatasetModel()
@@ -27,6 +27,34 @@ def load_dataset(dataset_id: str) -> pd.DataFrame:
         grid_out = dataset_model.fs.get(dataset_details["preprocessed_file_id"])
     return pd.read_csv(BytesIO(grid_out.read()))
 
+# Helper function to preprocess dataset
+def preprocess_dataset(df: pd.DataFrame, target_column: str = None) -> tuple:
+    if target_column:
+        X = df.drop(columns=[target_column])
+        y = df[target_column]
+    else:
+        X = df  # For unsupervised learning like KMeans
+        y = None
+    
+    # Convert categorical columns to numeric
+    label_encoders = {}
+    for column in X.columns:
+        if X[column].dtype == 'object' or X[column].dtype.name == 'category':
+            label_encoders[column] = LabelEncoder()
+            X[column] = label_encoders[column].fit_transform(X[column].astype(str))
+    
+    # Impute NaN values
+    imputer = SimpleImputer(strategy='mean')  # Use mean for numeric columns
+    X = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
+    
+    # Ensure all columns are numeric
+    X = X.astype(float)
+    
+    if y is not None and (y.dtype == 'object' or y.dtype.name == 'category'):
+        y = LabelEncoder().fit_transform(y.astype(str))
+    
+    return X, y
+
 # Helper function to train a model and return metrics
 def train_model(model_type: str, X_train, X_test, y_train, y_test, hyperparameters: dict):
     if model_type == "linear_regression":
@@ -38,13 +66,13 @@ def train_model(model_type: str, X_train, X_test, y_train, y_test, hyperparamete
     elif model_type == "random_forest":
         model = RandomForestClassifier()
     elif model_type == "kmeans":
-        model = KMeans(n_clusters=3)  # Example; adjust as needed
+        model = KMeans(n_clusters=hyperparameters.get("n_clusters", 3))
     elif model_type == "pca":
-        model = PCA(n_components=2)  # Example
+        model = PCA(n_components=hyperparameters.get("n_components", 2))
     elif model_type == "mlp":
         model = MLPClassifier(
             learning_rate_init=hyperparameters.get("learningRate", 0.01),
-            hidden_layer_sizes=(100,),  # Example
+            hidden_layer_sizes=(100,),
             max_iter=200
         )
     else:
@@ -58,14 +86,13 @@ def train_model(model_type: str, X_train, X_test, y_train, y_test, hyperparamete
 
     # Generate metrics
     metrics = {}
-    if model_type not in ["kmeans", "pca"]:  # Supervised models
+    if model_type not in ["kmeans", "pca"]:
         y_pred = model.predict(X_test)
         metrics["accuracy"] = float(np.mean(y_pred == y_test))
-        # Add precision, recall, etc., as needed
     elif model_type == "kmeans":
         metrics["inertia"] = float(model.inertia_)
     elif model_type == "pca":
-        metrics["explained_variance"] = float(np.sum(model.explained_variance_ratio_))
+        metrics["explained_variance"] = float(np.sum(model.explain_variance_ratio_))
 
     return model, metrics
 
@@ -78,10 +105,7 @@ def analyze_dataset():
         if not dataset_id:
             return jsonify({"error": "datasetId is required"}), 400
 
-        # Load dataset
         df = load_dataset(dataset_id)
-
-        # Analyze dataset
         dataset_info = {
             "datasetId": dataset_id,
             "columns": df.columns.tolist(),
@@ -91,9 +115,8 @@ def analyze_dataset():
                 "missingValues": df.isnull().sum().to_dict(),
                 "uniqueValues": df.nunique().to_dict(),
             },
-            "targetColumn": None  # Let user select this in frontend
+            "targetColumn": None
         }
-
         return jsonify(dataset_info), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -108,31 +131,34 @@ def train_model_route():
         dataset_id = data.get("datasetId")
         target_column = data.get("targetColumn")
 
-        if not all([model_type, dataset_id, target_column]):
-            return jsonify({"error": "modelType, datasetId, and targetColumn are required"}), 400
+        if not all([model_type, dataset_id]):
+            return jsonify({"error": "modelType and datasetId are required"}), 400
+        if model_type not in ["kmeans", "pca"] and not target_column:
+            return jsonify({"error": "targetColumn is required for supervised models"}), 400
 
         # Load dataset
         df = load_dataset(dataset_id)
-        X = df.drop(columns=[target_column])
-        y = df[target_column]
+        
+        # Preprocess dataset
+        X, y = preprocess_dataset(df, target_column if model_type not in ["kmeans", "pca"] else None)
 
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        # Split data (for supervised models only)
+        if model_type not in ["kmeans", "pca"]:
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        else:
+            X_train, X_test, y_train, y_test = X, None, None, None
 
         # Train model
         model, metrics = train_model(model_type, X_train, X_test, y_train, y_test, hyperparameters)
 
-        # Simulate training history (e.g., loss curve)
-        job_id = str(ObjectId())  # Unique ID for this training job
+        job_id = str(ObjectId())
         training_history = {
             "jobId": job_id,
             "modelType": model_type,
             "metrics": metrics,
-            "epochs": list(range(1, 11)),  # Simulated; replace with real training epochs if available
-            "loss": [1.0 / (i + 1) + np.random.random() * 0.1 for i in range(10)]  # Simulated loss
+            "epochs": list(range(1, 11)),
+            "loss": [1.0 / (i + 1) + np.random.random() * 0.1 for i in range(10)]
         }
-
-        # Optionally store model/training info in MongoDB (not implemented here for simplicity)
         return jsonify({"jobId": job_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -146,8 +172,6 @@ def visualize_model():
         if not job_id:
             return jsonify({"error": "jobId is required"}), 400
 
-        # Simulate fetching training results (replace with actual storage if implemented)
-        # For now, we'll generate dummy data based on job_id
         epochs = list(range(1, 11))
         loss = [1.0 / (i + 1) + np.random.random() * 0.1 for i in range(10)]
         metrics = {
@@ -155,7 +179,6 @@ def visualize_model():
             "precision": np.random.uniform(0.65, 0.9),
             "recall": np.random.uniform(0.6, 0.85),
         }
-
         viz_data = {
             "epochs": epochs,
             "loss": loss,
@@ -163,7 +186,6 @@ def visualize_model():
             "precision": metrics["precision"],
             "recall": metrics["recall"],
         }
-
         return jsonify(viz_data), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

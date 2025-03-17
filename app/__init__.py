@@ -24,11 +24,12 @@ def create_app():
 
     app.register_blueprint(users_bp, url_prefix='/user')
     app.register_blueprint(datasets_bp, url_prefix='/dataset')
+    app.register_blueprint(model_building_bp, url_prefix='/model')
 
-    with app.app_context():
-        print("Initializing scheduler...")
-        init_scheduler(app)
-        print("Scheduler initialized successfully!")
+    # with app.app_context():
+    #     print("Initializing scheduler...")
+    #     init_scheduler(app)
+    #     print("Scheduler initialized successfully!")
 
     print("Registered URLs:")
     for rule in app.url_map.iter_rules():

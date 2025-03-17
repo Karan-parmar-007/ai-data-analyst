@@ -21,7 +21,7 @@ class DatasetsToBePreprocessedModel:
     def get_unprocessed_datasets(self) -> list:
         """Retrieve all datasets that have not been preprocessed yet."""
         datasets_to_be_preprocessed = list(self.datasets_to_be_preprocessed_collection.find())
-        return [str(dataset["dataset_id"]) for dataset in datasets_to_be_preprocessed]
+        return [str(dataset["_id"]) for dataset in datasets_to_be_preprocessed]
     
     def delete_dataset_to_be_preprocessed(self, dataset_id: str):
         """Delete a dataset to be preprocessed entry."""

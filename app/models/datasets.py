@@ -168,6 +168,13 @@ class DatasetModel:
         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
         return dataset.get("is_preprocessing_done", False)
     
+    def update_preprocessing_status(self, dataset_id, is_preprocessing_done):
+        """Update the preprocessing status of a dataset."""
+        self.datasets_collection.update_one(
+            {"_id": ObjectId(dataset_id)},
+            {"$set": {"is_preprocessing_done": is_preprocessing_done}}
+        )
+    
     def update_dataset_file(self, dataset_id: str, new_df: pd.DataFrame, is_preprocessing_done: str) -> None:
         """Update the dataset file with the preprocessed DataFrame and set is_preprocessing_done to True."""
         from io import BytesIO
