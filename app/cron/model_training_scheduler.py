@@ -13,7 +13,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
-from bson import ObjectId
+from bson import ObjectId  # Added import for ObjectId
 
 _scheduler = None
 
@@ -35,6 +35,8 @@ def infer_target_column(dataset: dict, df: pd.DataFrame) -> str:
     for col, role in usage.items():
         if role.lower() in ["target", "label", "output"]:
             return col
+    
+    # Fallback: Assume last column is target if no explicit usage
     return df.columns[-1] if df.columns.size > 1 else None
 
 # Helper function to preprocess dataset
@@ -59,30 +61,47 @@ def preprocess_dataset(df: pd.DataFrame, target_column: str) -> tuple:
 
 # Helper function to train a model with grid search and return metrics
 def train_model(model_type: str, X_train, X_test, y_train, y_test):
+    # Define models and parameter grids
     model_configs = {
         "linear_regression": {
             "model": LinearRegression(),
             "params": {}
         },
         "logistic_regression": {
-            "model": LogisticRegression(max_iter=1000),
-            "params": {"C": [0.01, 0.1, 1.0, 10.0], "solver": ["lbfgs", "liblinear"]}
+            "model": LogisticRegression(max_iter=200),
+            "params": {
+                "C": [0.01, 0.1, 1.0, 10.0],
+                "solver": ["lbfgs", "liblinear"]
+            }
         },
         "decision_tree": {
             "model": DecisionTreeClassifier(),
-            "params": {"max_depth": [None, 10, 20], "min_samples_split": [2, 5]}
+            "params": {
+                "max_depth": [None, 10, 20],
+                "min_samples_split": [2, 5]
+            }
         },
         "random_forest": {
             "model": RandomForestClassifier(),
-            "params": {"n_estimators": [50, 100], "max_depth": [None, 10], "min_samples_split": [2, 5]}
+            "params": {
+                "n_estimators": [50, 100],
+                "max_depth": [None, 10],
+                "min_samples_split": [2, 5]
+            }
         },
         "kmeans": {
             "model": KMeans(),
-            "params": {"n_clusters": [2, 3, 4], "max_iter": [200, 600]}
+            "params": {
+                "n_clusters": [2, 3, 4],
+                "max_iter": [100, 300]
+            }
         },
         "mlp": {
-            "model": MLPClassifier(max_iter=1000),
-            "params": {"hidden_layer_sizes": [(50,), (100,), (50, 50)], "learning_rate_init": [0.001, 0.01]}
+            "model": MLPClassifier(max_iter=200),
+            "params": {
+                "hidden_layer_sizes": [(50,), (100,), (50, 50)],
+                "learning_rate_init": [0.001, 0.01]
+            }
         }
     }
 
@@ -116,7 +135,7 @@ def train_model(model_type: str, X_train, X_test, y_train, y_test):
     return model, metrics, hyperparameters
 
 def train_and_evaluate_models():
-    """Cron job to train models, keep only the best one."""
+    """Cron job to train models and find the best one with enhancements."""
     try:
         datasets = dataset_model.datasets_collection.find({"is_preprocessing_done": True})
         
@@ -145,8 +164,11 @@ def train_and_evaluate_models():
                 "mlp"
             ]
 
-            # Store all model results temporarily
-            model_results = []
+            best_model = None
+            best_metric = float('inf')  # For MSE (regression)
+            best_accuracy = -float('inf')  # For accuracy (classification)
+            best_job_id = None
+            best_hyperparameters = None
 
             for model_type in model_types:
                 try:
@@ -161,56 +183,44 @@ def train_and_evaluate_models():
                         "target_column": target_column,
                         "timestamp": datetime.utcnow()
                     }
-                    model_results.append(model_entry)
+                    
+                    dataset_model.update_dataset(dataset_id, {"$push": {"models": model_entry}})
+
+                    if model_type == "linear_regression":
+                        metric_value = metrics.get("mse", float('inf'))
+                        if metric_value < best_metric:
+                            best_metric = metric_value
+                            best_model = model_type
+                            best_job_id = job_id
+                            best_hyperparameters = hyperparameters
+                    elif model_type == "kmeans":
+                        continue  # Skip KMeans for best model
+                    else:  # Classification
+                        metric_value = metrics.get("accuracy", -float('inf'))
+                        if metric_value > best_accuracy:
+                            best_accuracy = metric_value
+                            best_model = model_type
+                            best_job_id = job_id
+                            best_hyperparameters = hyperparameters
                     
                 except Exception as e:
                     print(f"Error training {model_type} on dataset {dataset_id}: {str(e)}")
 
-            # Find the best model
-            best_model_entry = None
-            best_metric = float('inf')  # For MSE (regression)
-            best_accuracy = -float('inf')  # For accuracy (classification)
-
-            for entry in model_results:
-                model_type = entry["model_type"]
-                metrics = entry["metrics"]
-                
-                if model_type == "linear_regression":
-                    metric_value = metrics.get("mse", float('inf'))
-                    if metric_value < best_metric:
-                        best_metric = metric_value
-                        best_model_entry = entry
-                elif model_type == "kmeans":
-                    continue  # Skip KMeans for best model selection
-                else:  # Classification
-                    metric_value = metrics.get("accuracy", -float('inf'))
-                    if metric_value > best_accuracy:
-                        best_accuracy = metric_value
-                        best_model_entry = entry
-
-            # Update dataset with only the best model
-            if best_model_entry:
-                metric_name = "mse" if best_model_entry["model_type"] == "linear_regression" else "accuracy"
-                metric_value = best_metric if best_model_entry["model_type"] == "linear_regression" else best_accuracy
-                
-                # Replace the entire models array with just the best model
-                dataset_model.update_dataset(dataset_id, {"$set": {"models": [best_model_entry]}})
-                
-                # Update best_model field
+            if best_model:
+                metric_name = "mse" if best_model == "linear_regression" else "accuracy"
+                metric_value = best_metric if best_model == "linear_regression" else best_accuracy
                 best_model_update = {
                     "best_model": {
-                        "job_id": best_model_entry["job_id"],
-                        "model_type": best_model_entry["model_type"],
+                        "job_id": best_job_id,
+                        "model_type": best_model,
                         "metric": metric_value,
                         "metric_name": metric_name,
-                        "hyperparameters": best_model_entry["hyperparameters"],
+                        "hyperparameters": best_hyperparameters,
                         "timestamp": datetime.utcnow()
                     }
                 }
                 dataset_model.update_dataset(dataset_id, {"$set": best_model_update})
-                print(f"Best model for dataset {dataset_id}: {best_model_entry['model_type']} with {metric_name}={metric_value}")
-            else:
-                print(f"No valid models trained for dataset {dataset_id}")
+                print(f"Best model for dataset {dataset_id}: {best_model} with {metric_name}={metric_value}")
 
     except Exception as e:
         print(f"Error in train_and_evaluate_models: {str(e)}")
