@@ -202,3 +202,45 @@ def visualize_model():
         return jsonify(viz_data), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@model_building_bp.route('/metrics', methods=['GET'])
+def get_model_metrics():
+    try:
+        dataset_id = request.args.get("datasetId")
+        if not dataset_id:
+            return jsonify({"error": "datasetId is required"}), 400
+
+        # Verify dataset exists
+        dataset = dataset_model.get_dataset(dataset_id)
+        if not dataset:
+            return jsonify({"error": "Dataset not found"}), 404
+
+        # Fetch from model_metrics collection
+        metrics_cursor = dataset_model.datasets_collection.database.modelmetrics.find({"dataset_id": ObjectId(dataset_id)})
+        model_metrics = []
+        
+        for model in metrics_cursor:
+            metrics = model["metrics"]
+            timestamp = model["timestamp"]
+            if isinstance(timestamp, dict) and "$date" in timestamp:
+                timestamp = timestamp["$date"]
+            
+            model_metrics.append({
+                "name": model["model_type"],
+                "accuracy": metrics.get("accuracy", 0.0),
+                "precision": metrics.get("precision", 0.0),
+                "recall": metrics.get("recall", 0.0),
+                "f1Score": metrics.get("f1Score", 0.0),
+                "trainingTime": metrics.get("training_time", 0.0),  # Match scheduler key
+                "timestamp": timestamp,
+                "mse": metrics.get("mse"),
+                "r2": metrics.get("r2")
+            })
+
+        if not model_metrics:
+            return jsonify({"message": "No metrics found for this dataset"}), 200
+
+        return jsonify(model_metrics), 200
+    except Exception as e:
+        print(f"Error fetching metrics for dataset {dataset_id}: {str(e)}")
+        return jsonify({"error": str(e)}), 500
