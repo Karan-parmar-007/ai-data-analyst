@@ -7,29 +7,20 @@ from app.utils.remove_duplicates import RemoveDuplicates
 from datetime import datetime
 import pandas as pd
 import numpy as np
+from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
 
 _scheduler = None 
 
 def preprocess_dataset():
     """Job to process only unpreprocessed datasets with standardization."""
     try:
+        datasets_to_be_preprocessed_model = DatasetsToBePreprocessedModel()
         dataset_model = DatasetModel()
-        all_datasets = list(dataset_model.datasets_collection.find())
-        
-        if not all_datasets:
-            print("No datasets found in the database.")
-            return
+        unprocessed_datasets = datasets_to_be_preprocessed_model.get_unprocessed_datasets()
 
-        # Check if all datasets are preprocessed
-        all_preprocessed = all(dataset.get("is_preprocessing_done", False) for dataset in all_datasets)
-        if all_preprocessed:
-            print("All datasets are already preprocessed. Skipping preprocessing job.")
-            return
+        for dataset_id in unprocessed_datasets:
+            print(f"Processing dataset with ID: {dataset_id}")  # ✅ Now dataset_id is correct
 
-        # Process only unpreprocessed datasets
-        unpreprocessed_datasets = [d for d in all_datasets if not d.get("is_preprocessing_done", False)]
-        for dataset in unpreprocessed_datasets:
-            dataset_id = str(dataset["_id"])
             try:
                 # Load initial dataset
                 grid_out = dataset_model.get_dataset_csv(dataset_id)
@@ -59,8 +50,9 @@ def preprocess_dataset():
                 grid_out = dataset_model.get_dataset_csv(dataset_id)
                 df = handle_null.gridout_to_dataframe(grid_out)
 
-                # Update dataset with standardized data and set status
+                dataset_model.stop_preprocessing(dataset_id)
                 dataset_model.update_dataset_file(dataset_id, df, is_preprocessing_done=True)
+                datasets_to_be_preprocessed_model.delete_dataset_to_be_preprocessed(dataset_id)
                 print(f"Dataset {dataset_id} preprocessed successfully.")
             except Exception as e:
                 print(f"Error processing dataset {dataset_id}: {str(e)}")

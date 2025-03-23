@@ -24,6 +24,20 @@ def create_user():
 
     if not clerk_user_id or not email:
         return jsonify({"error": "Clerk user ID and email are required"}), 400
+    
+    
+    # Check if a user exists by clerk_user_id
+    if user_model.user_exists(clerk_user_id):
+        user_data = user_model.get_user_by_clerk_id(clerk_user_id)
+        clerk_user_id = user_data["clerk_user_id"]
+        return jsonify({"error": "User already exists with same clerk_id", "clerk_user_id": clerk_user_id}), 201
+
+    # Check if a user exists by email
+    if user_model.user_exists(email):
+        user_data = user_model.get_user_by_email(email)
+        clerk_user_id = user_data["clerk_user_id"]
+        return jsonify({"error": "User already exists with same email", "clerk_user_id": clerk_user_id}), 201
+    
 
     try:
         user_id = user_model.create_user(clerk_user_id, email, name)

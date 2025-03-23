@@ -89,7 +89,7 @@ class DatasetModel:
         """Update specific fields of a dataset."""
         result = self.datasets_collection.update_one(
             {"_id": ObjectId(dataset_id)},
-            update_fields,
+            {"$set": update_fields},  # Use $set to update fields
         )
         return result.modified_count
 
@@ -180,13 +180,77 @@ class DatasetModel:
         dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)})
         return dataset.get("is_preprocessing_done", False)
     
-    def update_preprocessing_status(self, dataset_id, is_preprocessing_done):
-        """Update the preprocessing status of a dataset."""
-        self.datasets_collection.update_one(
+
+    def start_preprocessing(self, dataset_id: str) -> int:
+        """
+        Set start_preprocessing to True for a given dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset to update.
+
+        Returns:
+            int: 1 if updated, 0 if already True or dataset not found.
+        """
+        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"start_preprocessing": 1})
+
+        if dataset and dataset.get("start_preprocessing") is True:
+            return 0  # Already True, no update needed
+
+        result = self.datasets_collection.update_one(
+            {"_id": ObjectId(dataset_id)},
+            {"$set": {"start_preprocessing": True}}
+        )
+
+        return result.modified_count  # 1 if updated, 0 if dataset not found
+
+
+
+    def stop_preprocessing(self, dataset_id: str) -> int:
+        """
+        Set start_preprocessing to False for a given dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset to update.
+
+        Returns:
+            int: 1 if updated, 0 if already False or dataset not found.
+        """
+        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"start_preprocessing": 1})
+
+        if dataset and dataset.get("start_preprocessing") is False:
+            return 0  # Already False, no update needed
+
+        result = self.datasets_collection.update_one(
+            {"_id": ObjectId(dataset_id)},
+            {"$set": {"start_preprocessing": False}}
+        )
+
+        return result.modified_count  # 1 if updated, 0 if dataset not found
+
+
+    def update_preprocessing_status(self, dataset_id: str, is_preprocessing_done: bool) -> int:
+        """
+        Update the preprocessing status of a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset to update.
+            is_preprocessing_done (bool): The new status to set.
+
+        Returns:
+            int: 1 if updated, 0 if already set or dataset not found.
+        """
+        dataset = self.datasets_collection.find_one({"_id": ObjectId(dataset_id)}, {"is_preprocessing_done": 1})
+
+        if dataset and dataset.get("is_preprocessing_done") == is_preprocessing_done:
+            return 0  # Already set, no update needed
+
+        result = self.datasets_collection.update_one(
             {"_id": ObjectId(dataset_id)},
             {"$set": {"is_preprocessing_done": is_preprocessing_done}}
         )
-    
+
+        return result.modified_count  # 1 if updated, 0 if dataset not found
+
     # In app/models/datasets.py
     def update_dataset_file(self, dataset_id: str, new_df: pd.DataFrame, is_preprocessing_done: bool) -> None:
         """Update the dataset file with the preprocessed DataFrame and set is_preprocessing_done."""

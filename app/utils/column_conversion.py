@@ -224,6 +224,7 @@ class ColumnConversion:
             logger.error(f"Error converting datatypes for dataset {self.dataset_id}.")
             return
         print(df)
+        print("after column conversion")
         logger.info(f"Dataset {self.dataset_id} preprocessed successfully.")
         # Optionally save the preprocessed DataFrame back to the database here
         dataset_model.update_dataset_file(self.dataset_id, df, is_preprocessing_done=False)

@@ -114,4 +114,6 @@ class HandleNullValues:
         df = self.handle_null_values(df, expected_datatypes, fill_empty_rows_using, fill_string_type_columns)
         dataset_model.update_dataset_file(self.dataset_id, df, is_preprocessing_done=False)
         logger.info(f"Dataset {self.dataset_id} null handling completed successfully")
+        print(df)
+        print("after Handling null values")
         return True

@@ -29,12 +29,12 @@ def create_app():
     app.register_blueprint(model_building_bp, url_prefix='/model')
     app.register_blueprint(gemini_api_bp, url_prefix='/gemini')
 
-    with app.app_context():
-        print("Initializing scheduler...")
-        model_init_scheduler(app)
-        print("Scheduler initialized successfully!")
+    # with app.app_context():
+    #     print("Initializing scheduler...")
+    #     model_init_scheduler(app)
+    #     print("Scheduler initialized successfully!")
 
-    print("Registered URLs:")
-    for rule in app.url_map.iter_rules():
-        print(rule)
+    # print("Registered URLs:")
+    # for rule in app.url_map.iter_rules():
+    #     print(rule)
     return app
