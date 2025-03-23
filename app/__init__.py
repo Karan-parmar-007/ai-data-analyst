@@ -2,7 +2,7 @@ from flask import Flask
 import os
 from flask_cors import CORS
 from app.cron.scheduler import init_scheduler
-from app.cron.model_training_scheduler import model_init_scheduler
+# from app.cron.model_training_scheduler import model_init_scheduler
 
 
 def create_app():
@@ -18,10 +18,10 @@ def create_app():
     from app.blueprints.users import users_bp
     from app.blueprints.datasets import datasets_bp
     from app.blueprints.model_building import model_building_bp
-    with app.app_context():
-         print("Initializing scheduler...")
-         init_scheduler(app)
-         print("Scheduler initialized successfully!")
+    # with app.app_context():
+    #      print("Initializing scheduler...")
+    #      init_scheduler(app)
+    #      print("Scheduler initialized successfully!")
 
     app.register_blueprint(users_bp, url_prefix='/user')
     app.register_blueprint(datasets_bp, url_prefix='/dataset')
@@ -29,7 +29,7 @@ def create_app():
 
     with app.app_context():
         print("Initializing scheduler...")
-        model_init_scheduler(app)
+        init_scheduler(app)
         print("Scheduler initialized successfully!")
 
     print("Registered URLs:")
