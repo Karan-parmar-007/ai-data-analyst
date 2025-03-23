@@ -10,18 +10,6 @@ import numpy as np
 
 _scheduler = None 
 
-def standardize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Standardize DataFrame columns to have mean=0 and std=1."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) == 0:
-        return df
-    
-    means = df[numeric_cols].mean()
-    stds = df[numeric_cols].std()
-    stds = stds.replace(0, 1)
-    df[numeric_cols] = (df[numeric_cols] - means) / stds
-    return df
-
 def preprocess_dataset():
     """Job to process only unpreprocessed datasets with standardization."""
     try:
@@ -70,9 +58,6 @@ def preprocess_dataset():
                     continue
                 grid_out = dataset_model.get_dataset_csv(dataset_id)
                 df = handle_null.gridout_to_dataframe(grid_out)
-
-                # Step 4: Standardize the DataFrame
-                df = standardize_dataframe(df)
 
                 # Update dataset with standardized data and set status
                 dataset_model.update_dataset_file(dataset_id, df, is_preprocessing_done=True)
