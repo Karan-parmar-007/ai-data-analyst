@@ -22,14 +22,14 @@ class DatasetModel:
             "user_id": ObjectId(user_id),
             "file_id": file_id,
             "filename": project_name,
+            "file_id_for_model_building_dataset": "",
             "dataset_description": "",
             "datatype_of_each_column": {},
             "usage_of_each_column": {},
-            "type_of_analysis": "",
-            "is_column_important": {},
             "fill_empty_rows_using": "",
             "remove_duplicate": True,
-            "scaling_and_normalization": True,
+            "standardization_necessary": True,
+            "normalization_necessary": False,
             "test_dataset_percentage": 30,
             "increase_the_size_of_dataset": False,
             "Is_preprocessing_form_filled": False,
@@ -37,6 +37,9 @@ class DatasetModel:
             "start_preprocessing": False,
             "models": [],
             "fill_string_type_columns": False,
+            "dimensionality_reduction": False,
+            "target_column": "",
+            "remove_highly_correlated_columns": False,
         }
 
         result = self.datasets_collection.insert_one(dataset)
@@ -52,14 +55,23 @@ class DatasetModel:
                 "user_id": str(dataset["user_id"]),
                 "file_id": str(dataset["file_id"]),  # This line assumes file_id exists
                 "filename": dataset["filename"],
+                "datatype_of_each_column": dataset.get("datatype_of_each_column", {}),
+                "usage_of_each_column": dataset.get("usage_of_each_column", {}),
                 "dataset_description": dataset.get("dataset_description", ""),
                 "is_preprocessing_done": dataset.get("is_preprocessing_done", False),
                 "Is_preprocessing_form_filled": dataset.get("Is_preprocessing_form_filled", False),
                 "start_preprocessing": dataset.get("start_preprocessing", False),
                 "test_dataset_percentage": dataset.get("test_dataset_percentage", 0),
                 "remove_duplicate": dataset.get("remove_duplicate", False),
-                "scaling_and_normalization": dataset.get("scaling_and_normalization", False),
-                "increase_the_size_of_dataset": dataset.get("increase_the_size_of_dataset", False)
+                "standardization_necessary": dataset.get("standardization_necessary", False),
+                "normalization_necessary": dataset.get("normalization_necessary", False),
+                "fill_empty_rows_using": dataset.get("fill_empty_rows_using", ""),
+                "increase_the_size_of_dataset": dataset.get("increase_the_size_of_dataset", False),
+                "dimensionality_reduction": dataset.get("dimensionality_reduction", False),
+                "standardization_necessary": dataset.get("standardization_necessary", False),
+                "normalization_necessary": dataset.get("normalization_necessary", False),
+                "target_column": dataset.get("target_column", ""),
+                "remove_highly_correlated_columns": dataset.get("remove_highly_correlated_columns", False),
             }
         except Exception as e:
             print(f"Error fetching dataset {dataset_id}: {str(e)}")

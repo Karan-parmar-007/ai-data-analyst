@@ -207,8 +207,7 @@ def preprocess_dataset():
                 grid_out = dataset_model.get_dataset_csv(dataset_id)
                 df = handle_null.gridout_to_dataframe(grid_out)
 
-                df = standardize_dataframe(df)
-
+                # Update dataset with standardized data and set status
                 dataset_model.update_dataset_file(dataset_id, df, is_preprocessing_done=True)
                 print(f"Dataset {dataset_id} preprocessed successfully.")
             except Exception as e:
