@@ -1,8 +1,10 @@
 from bson import ObjectId
 from app.utils.db import db
 import gridfs
-from io import BytesIO
 import pandas as pd
+import pickle
+import io
+from io import BytesIO
 
 class DatasetModel:
     def __init__(self):
@@ -22,7 +24,6 @@ class DatasetModel:
             "user_id": ObjectId(user_id),
             "file_id": file_id,
             "filename": project_name,
-            "file_id_for_model_building_dataset": "",
             "dataset_description": "",
             "datatype_of_each_column": {},
             "usage_of_each_column": {},
@@ -40,10 +41,51 @@ class DatasetModel:
             "dimensionality_reduction": False,
             "target_column": "",
             "remove_highly_correlated_columns": False,
+            "data_transformation_file_and_transformaed_dataset": {},
         }
 
         result = self.datasets_collection.insert_one(dataset)
         return str(result.inserted_id)
+
+    def store_artifacts(self, dataset_id: str, config_pickle_obj):
+        """
+        Stores the data transformation configuration (as a pickle) in GridFS,
+        then updates the dataset document with the artifact file ID nested under
+        the `data_transformation_file_and_transformaed_dataset` field.
+        """
+        try:
+            # Serialize the configuration object using pickle.
+            config_bytes = pickle.dumps(config_pickle_obj)
+            config_file_id = self.fs.put(config_bytes, filename="data_transformation_config.pkl")
+
+            # Use MongoDB aggregation pipeline to handle null parent field
+            self.datasets_collection.update_one(
+                {"_id": ObjectId(dataset_id)},
+                [
+                    # Ensure the parent field is a document (not null)
+                    {
+                        "$set": {
+                            "data_transformation_file_and_transformaed_dataset": {
+                                "$ifNull": ["$data_transformation_file_and_transformaed_dataset", {}]
+                            }
+                        }
+                    },
+                    # Set the nested config_file_id
+                    {
+                        "$set": {
+                            "data_transformation_file_and_transformaed_dataset.config_file_id": config_file_id
+                        }
+                    }
+                ]
+            )
+
+            return True
+
+        except Exception as e:
+            print(f"Error storing artifacts: {e}")
+            raise e
+
+
 
     def get_dataset(self, dataset_id: str) -> dict:
         try:
@@ -55,6 +97,7 @@ class DatasetModel:
                 "user_id": str(dataset["user_id"]),
                 "file_id": str(dataset["file_id"]),  # This line assumes file_id exists
                 "filename": dataset["filename"],
+                "data_transformation_file_and_transformaed_dataset": dataset.get("data_transformation_file_and_transformaed_dataset", {}),
                 "datatype_of_each_column": dataset.get("datatype_of_each_column", {}),
                 "usage_of_each_column": dataset.get("usage_of_each_column", {}),
                 "dataset_description": dataset.get("dataset_description", ""),

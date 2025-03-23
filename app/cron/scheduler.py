@@ -8,6 +8,8 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
+from app.models.model_building import ModelToBeBuilt
+from app.utils.dataset_model_preprocessing import DataTransformation
 
 _scheduler = None 
 
@@ -59,6 +61,23 @@ def preprocess_dataset():
     except Exception as e:
         print(f"Error in preprocess_dataset: {str(e)}")
 
+def start_model_building():
+    model_to_be_built = ModelToBeBuilt()
+    dataset_model = DatasetModel()
+    unbuilt_datasets = model_to_be_built.get_unbuilt_model()
+    for dataset_id in unbuilt_datasets:
+        try:
+            data_transformation = DataTransformation(dataset_id)
+            X_train, X_test, y_train, y_test = data_transformation.initiate_data_transformation()
+            if all(val is not None for val in (X_train, X_test, y_train, y_test)):
+                model_to_be_built.delete_model(dataset_id)
+                print(f"Dataset {dataset_id} model built successfully.")
+        except Exception as e:
+            print(f"Error building model for dataset {dataset_id}: {str(e)}")
+
+
+
+
 def init_scheduler(app):
     """Initialize the scheduler with the Flask app context."""
     global _scheduler
@@ -70,6 +89,7 @@ def init_scheduler(app):
         return
         
     _scheduler = BackgroundScheduler()
+
     _scheduler.add_job(
         func=preprocess_dataset,
         trigger='interval',
@@ -79,6 +99,17 @@ def init_scheduler(app):
         coalesce=True,
         next_run_time=datetime.now()
     )
+
+    _scheduler.add_job(
+        func=start_model_building,
+        trigger='interval',
+        minutes=5,
+        id='start_model_building_job',
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.now()
+    )
+
     _scheduler.start()
     
     import atexit

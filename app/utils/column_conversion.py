@@ -26,6 +26,7 @@ class ColumnConversion:
             "complex": self.convert_to_complex,
             "uint": self.convert_to_uint,
             "object": self.convert_to_object,
+            "date": self.convert_to_datetime,
         }
 
     def gridout_to_dataframe(self, grid_out):

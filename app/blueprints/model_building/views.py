@@ -1,6 +1,7 @@
 from flask import request, jsonify
 from app.models.datasets import DatasetModel
 from app.blueprints.model_building import model_building_bp
+from app.models.model_building import ModelToBeBuilt
 from bson import ObjectId
 import pandas as pd
 from io import BytesIO
@@ -19,6 +20,21 @@ from datetime import datetime
 
 # Initialize DatasetModel
 dataset_model = DatasetModel()
+
+@model_building_bp.route('/start-building', methods=['post'])
+def start_building():
+    try:
+        data = request.get_json()
+        dataset_id = data.get("dataset_id")
+        if not dataset_id:
+            return jsonify({"error": "datasetId is required"}), 400
+        model_to_be_build = ModelToBeBuilt()
+        model_to_be_build.create_model_building_model(dataset_id)
+        return jsonify({"message": "Model building started"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
+
 
 # Helper function to load dataset from GridFS
 def load_dataset(dataset_id: str) -> pd.DataFrame:

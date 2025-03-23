@@ -1,221 +1,221 @@
-from app.models.datasets import DatasetModel
-import pandas as pd
+import os
+import sys
+import pickle
+from dataclasses import dataclass
 import numpy as np
-
-# Sklearn modules for encoding, scaling and dimensionality reduction
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder, LabelEncoder
+import pandas as pd
+from bson import ObjectId
+import io
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder, FunctionTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from app.models.datasets import DatasetModel  # Import DatasetModel for artifact storage
+from app.utils.exception import CustomException  # Ensure this exception prints the underlying error
+from app.utils.logger import logging
 
-class DatasetPreprocessingForModel:
+
+
+def convert_datetime(x, col):
+    """Top-level function for datetime conversion (must be outside the class)."""
+    # Convert input to numpy array and flatten
+    x_flat = x.to_numpy().ravel()
+    sample = x_flat[0] if len(x_flat) > 0 else None
+
+    try:
+        if sample and isinstance(sample, str):
+            if ':' in sample and '-' not in sample:
+                # Handle time-only format
+                dt_series = pd.to_datetime(x_flat, format='%H:%M:%S', errors='coerce')
+            else:
+                # Handle full datetime
+                dt_series = pd.to_datetime(x_flat, errors='coerce')
+        else:
+            dt_series = pd.to_datetime(x_flat, errors='coerce')
+    except Exception as e:
+        logging.error(f"Error converting datetime column {col}: {e}")
+        dt_series = pd.to_datetime(x_flat, errors='coerce')
+
+    # Convert to Series to ensure .dt accessor works
+    dt_series = pd.Series(dt_series, name=col)
+
+    # Fill missing values with a default datetime
+    dt_series = dt_series.fillna(pd.Timestamp("1900-01-01"))
+
+    # Extract datetime components using .dt
+    df_out = pd.DataFrame({
+        f"{col}_day": dt_series.dt.day,
+        f"{col}_month": dt_series.dt.month,
+        f"{col}_year": dt_series.dt.year,
+        f"{col}_hour": dt_series.dt.hour,
+        f"{col}_minute": dt_series.dt.minute,
+        f"{col}_second": dt_series.dt.second,
+    })
+
+    return df_out.values
+
+
+class DataTransformation:
     def __init__(self, dataset_id: str):
-        self.dataset_id = dataset_id
-        self.dataset_model = DatasetModel()
-
-    def fetch_dataset(self):
-        # Retrieve dataset details and CSV file
-        self.dataset = self.dataset_model.get_by_id(self.dataset_id)
-        self.df = self.dataset_model.get_dataset_csv(self.dataset_id)
-        # Expected datatypes provided by the user
-        self.expected_datatypes = self.dataset.get("datatype_of_each_column", {})
-        return self.df
-
-    def convert_columns_to_datatype(self):
         """
-        Convert dataframe columns to the types provided in expected_datatypes.
-        Example expected_datatypes:
-            {
-                "Id": "uint",
-                "SepalLengthCm": "float",
-                "SepalWidthCm": "float",
-                "PetalLengthCm": "float",
-                "PetalWidthCm": "float",
-                "Species": "category",
-                "ObservationDate": "datetime"  # if provided
-            }
+        Initializes the data transformation process by retrieving the dataset from the database.
+        The dataset document (metadata) should include:
+           - "datatype_of_each_column": dict with column names as keys and expected types (e.g., 'float', 'datetime', etc.)
+           - "target_column": name of target column (if any)
+           - flags such as "standardization_necessary", "normalization_necessary", "dimensionality_reduction", etc.
+           - "test_dataset_percentage": percentage for test split (e.g., 30 for 30% test split)
+           - "_id": the MongoDB _id for the dataset (stored as ObjectId)
         """
-        for col, expected_type in self.expected_datatypes.items():
-            if col in self.df.columns:
-                etype = expected_type.lower()
-                try:
-                    if etype in ["float", "double"]:
-                        self.df[col] = self.df[col].astype(float)
-                    elif etype in ["int", "uint", "integer"]:
-                        self.df[col] = self.df[col].astype(int)
-                    elif etype in ["category"]:
-                        self.df[col] = self.df[col].astype("category")
-                    elif etype in ["datetime", "date", "time"]:
-                        self.df[col] = pd.to_datetime(self.df[col], errors='coerce')
-                        # Extract parts if conversion is successful
-                        self.df[f"{col}_day"] = self.df[col].dt.day
-                        self.df[f"{col}_month"] = self.df[col].dt.month
-                        self.df[f"{col}_year"] = self.df[col].dt.year
-                        self.df[f"{col}_hour"] = self.df[col].dt.hour
-                        self.df[f"{col}_minute"] = self.df[col].dt.minute
-                        self.df[f"{col}_second"] = self.df[col].dt.second
-                except Exception as e:
-                    print(f"Conversion issue on column {col}: {e}")
-        return self.df
-
-    def combine_date_time_columns(self):
-        """
-        If exactly one date column and one time column are detected (based on column name),
-        combine them into a single datetime column.
-        """
-        date_cols = [col for col in self.df.columns if 'date' in col.lower()]
-        time_cols = [col for col in self.df.columns if 'time' in col.lower()]
-        # If exactly one date and one time column exist, combine them.
-        if len(date_cols) == 1 and len(time_cols) == 1:
-            combined = self.df[date_cols[0]].astype(str) + ' ' + self.df[time_cols[0]].astype(str)
-            self.df['datetime_combined'] = pd.to_datetime(combined, errors='coerce')
-            # Optionally, extract datetime parts for the combined column
-            self.df["datetime_combined_day"] = self.df['datetime_combined'].dt.day
-            self.df["datetime_combined_month"] = self.df['datetime_combined'].dt.month
-            self.df["datetime_combined_year"] = self.df['datetime_combined'].dt.year
-            self.df["datetime_combined_hour"] = self.df['datetime_combined'].dt.hour
-            self.df["datetime_combined_minute"] = self.df['datetime_combined'].dt.minute
-            self.df["datetime_combined_second"] = self.df['datetime_combined'].dt.second
-        return self.df
-
-    def separate_columns(self):
-        """
-        Identify numerical, categorical, and datetime columns.
-        If target column is provided, remove it from features.
-        """
-        # Numerical columns (after conversion)
-        self.numerical_cols = self.df.select_dtypes(include=["int64", "float64"]).columns.tolist()
-        # Categorical columns
-        self.categorical_cols = self.df.select_dtypes(include=["object", "category"]).columns.tolist()
-        # Datetime columns might have been converted to datetime64; we can list them if needed.
-        self.datetime_cols = self.df.select_dtypes(include=["datetime"]).columns.tolist()
+        self.ds_model = DatasetModel()
+        dataset_data = self.ds_model.get_dataset(ObjectId(dataset_id))
+        if not dataset_data:
+            raise CustomException(f"No dataset found with ID: {dataset_id}", sys)
         
-        # Exclude target column from features if provided
-        self.target_column = self.dataset.get("target_column", "")
-        if self.target_column:
-            if self.target_column in self.categorical_cols:
-                self.categorical_cols.remove(self.target_column)
-            if self.target_column in self.numerical_cols:
-                self.numerical_cols.remove(self.target_column)
-            if self.target_column in self.datetime_cols:
-                self.datetime_cols.remove(self.target_column)
-                
-        return self.numerical_cols, self.categorical_cols, self.datetime_cols
+        grid_out = self.ds_model.get_dataset_csv(dataset_id)
+        data_bytes = grid_out.read()
+        data_io = io.BytesIO(data_bytes)
+        self.df = pd.read_csv(data_io)
+        # Store the entire dataset document as metadata.
+        self.metadata = dataset_data
 
-    def encode_columns(self):
-        """
-        Encode categorical features and, if necessary, the target column.
-        """
-        # One-hot encode categorical features
-        if self.categorical_cols:
-            ohe = OneHotEncoder(sparse=False, handle_unknown='ignore')
-            cat_data = ohe.fit_transform(self.df[self.categorical_cols])
-            cat_df = pd.DataFrame(cat_data, 
-                                  columns=ohe.get_feature_names_out(self.categorical_cols),
-                                  index=self.df.index)
-            self.df.drop(columns=self.categorical_cols, inplace=True)
-            self.df = pd.concat([self.df, cat_df], axis=1)
+    def _build_datetime_pipeline(self, col: str):
+        return Pipeline(steps=[
+            ('datetime_extractor', FunctionTransformer(
+                convert_datetime,  # Use the top-level function
+                validate=False,
+                kw_args={"col": col}  # Pass column name here
+            ))
+        ])
 
-        # Encode target column if it's categorical
-        if self.target_column and self.target_column in self.df.columns:
-            if self.df[self.target_column].dtype.name == "category" or self.df[self.target_column].dtype == object:
-                le = LabelEncoder()
-                self.df[self.target_column] = le.fit_transform(self.df[self.target_column])
-        return self.df
 
-    def scale_numerical(self):
-        """
-        Apply scaling to numerical columns.
-        Standardization is applied if flagged. Normalization is applied if flagged.
-        """
-        if self.numerical_cols:
-            # Standardization
-            if self.dataset.get("standardization_necessary", False):
-                scaler = StandardScaler()
-                self.df[self.numerical_cols] = scaler.fit_transform(self.df[self.numerical_cols])
+
+    def get_preprocessing_pipeline(self):
+        try:
+            logging.info("Building preprocessing pipeline based on dataset metadata.")
+            # Use the full document from metadata.
+            datatype_dict = self.metadata.get("datatype_of_each_column", {})
+            target_col = self.metadata.get("target_column", "")
+
+            num_cols = []
+            cat_cols = []
+            datetime_cols = []
             
-            # Normalization (Min-Max scaling) may be applied additionally if needed.
-            if self.dataset.get("normalization_necessary", False):
-                scaler = MinMaxScaler()
-                self.df[self.numerical_cols] = scaler.fit_transform(self.df[self.numerical_cols])
-        return self.df
+            # Separate columns based on expected data types.
+            for col, dtype in datatype_dict.items():
+                if col == target_col:
+                    continue  # Skip target column.
+                dtype = dtype.lower()
+                if dtype in ["float", "double", "int", "uint", "integer"]:
+                    num_cols.append(col)
+                elif dtype in ["category", "object", "str"]:
+                    cat_cols.append(col)
+                elif dtype in ["datetime", "date", "time"]:
+                    datetime_cols.append(col)
 
-    def remove_highly_correlated_columns(self, threshold=0.95):
-        """
-        Remove one column from each pair of highly correlated numerical features.
-        """
-        if self.numerical_cols:
-            corr_matrix = self.df[self.numerical_cols].corr().abs()
-            # Select upper triangle of correlation matrix
-            upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-            # Find features with correlation greater than the threshold
-            to_drop = [column for column in upper.columns if any(upper[column] > threshold)]
-            if to_drop:
-                print(f"Dropping highly correlated columns: {to_drop}")
-                self.df.drop(columns=to_drop, inplace=True)
-                # Update numerical columns list after drop
-                self.numerical_cols = [col for col in self.numerical_cols if col not in to_drop]
-        return self.df
+            # Build numerical pipeline.
+            num_pipeline_steps = [
+                ('imputer', SimpleImputer(strategy='median'))
+            ]
+            if self.metadata.get("standardization_necessary", False):
+                num_pipeline_steps.append(('scaler', StandardScaler()))
+            elif self.metadata.get("normalization_necessary", False):
+                num_pipeline_steps.append(('scaler', MinMaxScaler()))
+            num_pipeline = Pipeline(steps=num_pipeline_steps)
 
-    def reduce_dimensionality(self, n_components=0.95):
-        """
-        Apply PCA on numerical features if dimensionality reduction is flagged.
-        """
-        if self.dataset.get("dimensionality_reduction", False) and self.numerical_cols:
-            pca = PCA(n_components=n_components)
-            numerical_data = self.df[self.numerical_cols]
-            pca_transformed = pca.fit_transform(numerical_data)
-            pca_df = pd.DataFrame(pca_transformed, 
-                                  columns=[f"PC{i+1}" for i in range(pca_transformed.shape[1])],
-                                  index=self.df.index)
-            self.df.drop(columns=self.numerical_cols, inplace=True)
-            self.df = pd.concat([self.df, pca_df], axis=1)
-        return self.df
+            # Build categorical pipeline.
+            # Build categorical pipeline.
+            cat_pipeline = Pipeline(steps=[
+                ('imputer', SimpleImputer(strategy='most_frequent')),
+                ('onehot', OneHotEncoder(sparse_output=False, handle_unknown='ignore'))
+            ])
 
-    def increase_dataset_size(self):
+
+            transformers = []
+            if num_cols:
+                transformers.append(('num_pipeline', num_pipeline, num_cols))
+            if cat_cols:
+                transformers.append(('cat_pipeline', cat_pipeline, cat_cols))
+            if datetime_cols:
+                for col in datetime_cols:
+                    transformers.append((f"dt_pipeline_{col}", self._build_datetime_pipeline(col), [col]))
+
+            preprocessor = ColumnTransformer(transformers=transformers)
+
+            if self.metadata.get("dimensionality_reduction", False):
+                preprocessor = Pipeline(steps=[
+                    ('preprocessor', preprocessor),
+                    ('pca', PCA(n_components=0.95))
+                ])
+
+            logging.info("Preprocessing pipeline built successfully.")
+            return preprocessor
+
+        except Exception as e:
+            logging.error("Error while building the preprocessing pipeline: %s", e)
+            raise CustomException(e, sys)
+
+    def transform_dataset(self, df: pd.DataFrame):
         """
-        A simple oversampling example:
-        If the flag is enabled, duplicate the dataset to increase its size.
-        In practice, consider using SMOTE or other augmentation techniques.
+        Applies the preprocessing pipeline to the provided DataFrame.
+        Returns the fitted preprocessor and the transformed data.
         """
-        if self.dataset.get("increase_the_size_of_dataset", False):
-            print("Increasing dataset size by duplicating rows.")
-            self.df = pd.concat([self.df, self.df.copy()], ignore_index=True)
-        return self.df
+        try:
+            preprocessor = self.get_preprocessing_pipeline()
+            logging.info("Transforming dataset using the preprocessor pipeline.")
+            transformed_data = preprocessor.fit_transform(df)
+            return preprocessor, transformed_data
+        except Exception as e:
+            logging.error("Error during dataset transformation: %s", e)
+            raise CustomException(e, sys)
 
-    def split_train_test(self):
+    def initiate_data_transformation(self):
         """
-        Split the dataset into training and testing sets.
+        Reads the dataset from GridFS (already loaded in self.df), applies the preprocessing pipeline,
+        performs train-test split based on metadata, and stores the preprocessor pipeline (as a pickle file)
+        in GridFS by updating the dataset document field "data_transformation_file_and_transformaed_dataset".
+        
+        Returns X_train, X_test, y_train, y_test.
         """
-        test_percentage = self.dataset.get("test_dataset_percentage", 30) / 100.0
-        n = len(self.df)
-        test_size = int(n * test_percentage)
-        train_df = self.df.iloc[:-test_size, :].reset_index(drop=True)
-        test_df = self.df.iloc[-test_size:, :].reset_index(drop=True)
-        return train_df, test_df
+        try:
+            # Use the DataFrame already loaded in __init__.
+            df = self.df.copy()
 
-    def main(self):
-        # Main processing pipeline
-        self.fetch_dataset()
-        self.convert_columns_to_datatype()
-        self.combine_date_time_columns()
-        self.separate_columns()
-        self.encode_columns()
-        self.scale_numerical()
-        self.remove_highly_correlated_columns()
-        self.reduce_dimensionality()
-        self.increase_dataset_size()
-        train_df, test_df = self.split_train_test()
+            # Extract target column if provided.
+            target_col = self.metadata.get("target_column", "")
+            if target_col and target_col in df.columns:
+                X = df.drop(columns=[target_col])
+                y = df[target_col]
+            else:
+                X = df
+                y = None
 
-        # Save processed dataset for future testing
-        processed_filename = f"processed_{self.dataset.get('filename', 'dataset')}.csv"
-        train_df.to_csv(processed_filename, index=False)
-        print(f"Processed dataset saved as {processed_filename}")
+            # Apply transformation on features.
+            preprocessor, transformed_data = self.transform_dataset(X)
+            transformed_df = pd.DataFrame(transformed_data)
+            logging.info("Dataset transformation complete. Sample output: %s", str(transformed_df.head()))
 
-        # Optionally, update dataset status in your database/model
-        # self.dataset_model.update(self.dataset_id, {"is_preprocessing_done": True})
-        return train_df, test_df
+            # Perform train-test split based on metadata percentage.
+            test_pct = self.metadata.get("test_dataset_percentage", 30) / 100.0
+            if y is not None:
+                X_train, X_test, y_train, y_test = train_test_split(transformed_df, y, test_size=test_pct, random_state=42)
+            else:
+                X_train, X_test = train_test_split(transformed_df, test_size=test_pct, random_state=42)
+                y_train = y_test = None
 
-# Example usage:
-if __name__ == "__main__":
-    dataset_id = "your_dataset_id_here"
-    processor = DatasetPreprocessingForModel(dataset_id)
-    train, test = processor.main()
+            # Retrieve the dataset ID (using _id field from metadata).
+            dataset_id = str(self.metadata.get("_id"))
+            if not dataset_id:
+                raise CustomException("Dataset ID not found in metadata.", sys)
+
+            # Store only the preprocessor pipeline artifact.
+            # Note: We pass an empty DataFrame to indicate that we're not storing the transformed dataset.
+            artifacts = self.ds_model.store_artifacts(dataset_id, preprocessor)
+            logging.info("Artifacts stored in DB: %s", artifacts)
+
+            return X_train, X_test, y_train, y_test
+
+        except Exception as e:
+            logging.error("Exception occurred during data transformation: %s", e)
+            raise CustomException(e, sys)

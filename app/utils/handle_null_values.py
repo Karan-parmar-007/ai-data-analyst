@@ -97,23 +97,32 @@ class HandleNullValues:
         if not dataset_details:
             logger.error(f"Dataset with ID {self.dataset_id} not found.")
             return False
-        
+
         grid_out = dataset_model.get_dataset_csv(self.dataset_id)
         df = self.gridout_to_dataframe(grid_out)
         if df is None or df.empty:
             logger.error(f"Failed to convert dataset {self.dataset_id} to DataFrame or DataFrame is empty.")
             return False
-        
+
+        # Remove extra empty columns:
+        df.dropna(axis=1, how='all', inplace=True)
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+
         fill_empty_rows_using = dataset_details.get("fill_empty_rows_using", "")
         fill_string_type_columns = dataset_details.get("fill_string_type_columns", False)
         if not fill_empty_rows_using:
             logger.info(f"Fill empty rows using method not specified for dataset {self.dataset_id}. Defaulting to 'mean'.")
             fill_empty_rows_using = "mean"  # Default to mean
-        
+
         expected_datatypes = dataset_details.get("datatype_of_each_column", {})
         df = self.handle_null_values(df, expected_datatypes, fill_empty_rows_using, fill_string_type_columns)
+        
+        # Drop any remaining rows that contain NaN values
+        df = df.dropna()
+
         dataset_model.update_dataset_file(self.dataset_id, df, is_preprocessing_done=False)
         logger.info(f"Dataset {self.dataset_id} null handling completed successfully")
         print(df)
         print("after Handling null values")
         return True
+
