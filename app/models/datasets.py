@@ -85,7 +85,45 @@ class DatasetModel:
             print(f"Error storing artifacts: {e}")
             raise e
 
+    def store_model_artifact(self, dataset_id: str, model_artifact: dict):
+        """
+        Stores a model training artifact in GridFS and updates the dataset's 'models' array.
+        The model_artifact dictionary should contain:
+          - model_name: str, e.g., "LogisticRegression"
+          - train_time: float, training time in seconds
+          - metrics: dict, e.g., {'train_accuracy': ..., 'test_accuracy': ..., ...}
+          - artifact_store_response: (optional) response from any previous storage steps
+          - trained_model: the actual scikit-learn model object (this will be pickled and stored)
+        
+        After pickling the trained model, only its file ID is stored in the document.
+        """
+        try:
+            # Extract and pickle the trained model object.
+            model_obj = model_artifact.get("trained_model")
+            if model_obj is None:
+                raise ValueError("The model_artifact dictionary must include a 'trained_model' key.")
 
+            # Remove the model object from the dictionary so it doesn't get stored directly.
+            del model_artifact["trained_model"]
+
+            # Serialize the model object using pickle.
+            model_pickle_bytes = pickle.dumps(model_obj)
+            # Store the pickled model in GridFS.
+            model_file_id = self.fs.put(model_pickle_bytes, filename=f"{model_artifact.get('model_name')}_model.pkl")
+            
+            # Add the GridFS file ID to the artifact dictionary.
+            model_artifact["model_file_id"] = model_file_id
+
+            # Append the artifact details to the 'models' array in the dataset document.
+            self.datasets_collection.update_one(
+                {"_id": ObjectId(dataset_id)},
+                {"$push": {"models": model_artifact}}
+            )
+            return True
+
+        except Exception as e:
+            print(f"Error storing model artifact: {e}")
+            raise e
 
     def get_dataset(self, dataset_id: str) -> dict:
         try:

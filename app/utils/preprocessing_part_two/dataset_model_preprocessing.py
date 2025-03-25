@@ -125,7 +125,6 @@ class DataTransformation:
             num_pipeline = Pipeline(steps=num_pipeline_steps)
 
             # Build categorical pipeline.
-            # Build categorical pipeline.
             cat_pipeline = Pipeline(steps=[
                 ('imputer', SimpleImputer(strategy='most_frequent')),
                 ('onehot', OneHotEncoder(sparse_output=False, handle_unknown='ignore'))
@@ -213,6 +212,7 @@ class DataTransformation:
             # Note: We pass an empty DataFrame to indicate that we're not storing the transformed dataset.
             artifacts = self.ds_model.store_artifacts(dataset_id, preprocessor)
             logging.info("Artifacts stored in DB: %s", artifacts)
+            print(X_train, X_test, y_train, y_test)
 
             return X_train, X_test, y_train, y_test
 

@@ -1,15 +1,15 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
 from app.models.datasets import DatasetModel
-from app.utils.column_conversion import ColumnConversion
-from app.utils.handle_null_values import HandleNullValues
-from app.utils.remove_duplicates import RemoveDuplicates
+from app.utils.preprocesssing_part_one.column_conversion import ColumnConversion
+from app.utils.preprocesssing_part_one.handle_null_values import HandleNullValues
+from app.utils.preprocesssing_part_one.remove_duplicates import RemoveDuplicates
 from datetime import datetime
 import pandas as pd
 import numpy as np
 from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
 from app.models.model_building import ModelToBeBuilt
-from app.utils.dataset_model_preprocessing import DataTransformation
+from app.utils.preprocessing_part_two.dataset_model_preprocessing import DataTransformation
 
 _scheduler = None 
 
