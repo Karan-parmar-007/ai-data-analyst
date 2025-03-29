@@ -29,11 +29,10 @@ def recommend_preprocessing():
     # Get request data
     data = request.json
     dataset_id = data.get('dataset_id')
-    user_goal = data.get('user_goal')
     target_column = data.get('target_column')
 
     # Validate input
-    if not all([dataset_id, user_goal, target_column]):
+    if not all([dataset_id, target_column]):
         return jsonify({"error": "Missing required parameters: dataset_id, user_goal, target_column"}), 400
 
     try:
@@ -46,6 +45,7 @@ def recommend_preprocessing():
         column_datatypes = dataset_info.get('datatype_of_each_column', {})
         usage_of_each_column = dataset_info.get('usage_of_each_column', {})
         dataset_description = dataset_info.get('dataset_description', '')
+        user_goal = dataset_info.get('what_user_wants_to_do', '')
 
         dataset_csv = dataset_model.get_dataset_csv(dataset_id)
         df = gridout_to_dataframe(dataset_csv)

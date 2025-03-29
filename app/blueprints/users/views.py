@@ -61,7 +61,11 @@ def update_user_name():
         if not user:
             return jsonify({"error": "User not found"}), 404
         updated_count = user_model.update_user_name(user["user_id"], new_name)
-        return jsonify({"message": "Name updated"}) if updated_count else jsonify({"error": "Update failed"}), 404
+        if updated_count:
+            return jsonify({"message": "Name updated"}), 200
+            
+        else:
+            return jsonify({"error": "Update failed same name as the previous one"}), 404
     except InvalidId as e:
         return jsonify({"error": f"Invalid ID: {str(e)}"}), 400
     except Exception as e:

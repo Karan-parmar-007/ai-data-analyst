@@ -2,7 +2,6 @@ from flask import Flask
 import os
 from flask_cors import CORS
 from app.cron.scheduler import init_scheduler
-from app.cron.model_training_scheduler import model_init_scheduler
 
 
 def create_app():
@@ -28,11 +27,6 @@ def create_app():
     app.register_blueprint(datasets_bp, url_prefix='/dataset')
     app.register_blueprint(model_building_bp, url_prefix='/model')
     app.register_blueprint(gemini_api_bp, url_prefix='/gemini')
-
-    # with app.app_context():
-    #     print("Initializing scheduler...")
-    #     model_init_scheduler(app)
-    #     print("Scheduler initialized successfully!")
 
     # print("Registered URLs:")
     # for rule in app.url_map.iter_rules():

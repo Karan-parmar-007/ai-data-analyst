@@ -42,6 +42,7 @@ class DatasetModel:
             "target_column": "",
             "remove_highly_correlated_columns": False,
             "data_transformation_file_and_transformaed_dataset": {},
+            "what_user_wants_to_do": ""
         }
 
         result = self.datasets_collection.insert_one(dataset)
@@ -153,6 +154,7 @@ class DatasetModel:
                 "normalization_necessary": dataset.get("normalization_necessary", False),
                 "target_column": dataset.get("target_column", ""),
                 "remove_highly_correlated_columns": dataset.get("remove_highly_correlated_columns", False),
+                "what_user_wants_to_do": dataset.get("what_user_wants_to_do", ""),
             }
         except Exception as e:
             print(f"Error fetching dataset {dataset_id}: {str(e)}")

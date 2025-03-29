@@ -73,3 +73,7 @@ class GeminiFunctions:
         except Exception as e:
             logger.error(f"Error during Gemini API call: {e}")
             return {}
+
+
+    def get_type_of_models_to_built(self, ):
+        pass
