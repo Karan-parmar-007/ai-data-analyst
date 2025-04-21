@@ -134,11 +134,3 @@ class UserModel:
             "name": user["name"],
             "dataset_ids": [str(dataset_id) for dataset_id in user.get("datasets", [])]
         }
-
-# Example usage (for testing purposes):
-# user_manager = UserManager()
-# user_id = user_manager.create_user("Alice")
-# user_manager.update_user_name(user_id, "Alicia")
-# user_manager.add_dataset(user_id, "60f7f3d5368a2f1a4c8f9a3b")
-# user_manager.remove_dataset(user_id, "60f7f3d5368a2f1a4c8f9a3b")
-# user_manager.delete_user(user_id)

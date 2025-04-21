@@ -18,6 +18,7 @@ def create_app():
     from app.blueprints.datasets import datasets_bp
     from app.blueprints.model_building import model_building_bp
     from app.blueprints.gemini_apis import gemini_api_bp
+    from app.blueprints.admin import admin_bp
     with app.app_context():
          print("Initializing scheduler...")
          init_scheduler(app)
@@ -27,6 +28,7 @@ def create_app():
     app.register_blueprint(datasets_bp, url_prefix='/dataset')
     app.register_blueprint(model_building_bp, url_prefix='/model')
     app.register_blueprint(gemini_api_bp, url_prefix='/gemini')
+    app.register_blueprint(admin_bp, url_prefix='/admin')
 
     # print("Registered URLs:")
     # for rule in app.url_map.iter_rules():

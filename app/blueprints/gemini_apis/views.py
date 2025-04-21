@@ -9,6 +9,7 @@ import re
 from app.utils.gemini import GeminiFunctions
 from bson import ObjectId
 
+
 dataset_model = DatasetModel()
 
 def gridout_to_dataframe(grid_out):
@@ -119,52 +120,42 @@ def recommend_preprocessing():
         return jsonify({"error": "Internal server error"}), 500
     
 
-@gemini_api_bp.route('/find_models_to_train', methods=['get'])
-def find_models_to_train():
-    """
-    API endpoint to fetch model options from Gemini for all options.
-    Expects JSON payload with dataset_id, target_column, and user_goal.
-    Returns a JSON object with model options for training.
-    """
+# @gemini_api_bp.route('/find_models_to_train', methods=['get'])
+# def find_models_to_train():
+#     """
+#     API endpoint to fetch model options from Gemini for all options.
+#     Expects JSON payload with dataset_id, target_column, and user_goal.
+#     Returns a JSON object with model options for training.
+#     """
 
-    dataset_id = ObjectId(request.args.get('dataset_id'))
-    if dataset_id is None:
-        return jsonify({"error": "Invalid dataset_id format"}), 400
+#     dataset_id = ObjectId(request.args.get('dataset_id'))
+#     if dataset_id is None:
+#         return jsonify({"error": "Invalid dataset_id format"}), 400
 
-    # Validate input
-    if not dataset_id:
-        return jsonify({"error": "Missing required parameter: dataset_id"}), 400
-    try:
-        gemini_functions = GeminiFunctions()
-        initial_model_types = gemini_functions.get_type_of_models_to_built(dataset_id)
-        if initial_model_types is None:
-            return None
-        for models in initial_model_types:
-            if models == 'classification_models':
-                classification_model = gemini_functions.get_classification_models(dataset_id)
-                if classification_model is None:
-                    return None
-                initial_model_types.remove(models)
-                initial_model_types.append(classification_model)
-            elif models == 'regression_models':
-                regression_model = gemini_functions.get_regression_models(dataset_id)
-                if regression_model is None:
-                    return None
-                initial_model_types.remove(models)
-                initial_model_types.append(regression_model)
+#     # Validate input
+#     if not dataset_id:
+#         return jsonify({"error": "Missing required parameter: dataset_id"}), 400
+#     try:
+#         gemini_functions = GeminiFunctions()
+#         initial_model_types = gemini_functions.get_type_of_models_to_built(dataset_id)
+#         if initial_model_types is None:
+#             return jsonify({"error": "No model types found"}), 404
+        
+#         model_dict = {}
+#         get_models_name = GetModelsName()
+        
+#         for model_type in initial_model_types:
+#             models = get_models_name.get_names(model_type)
+#             imp_models = gemini_functions.get_type_of_models_for_one_type(dataset_id, models)
+#             if imp_models:
+#                 model_dict[model_type] = imp_models
+        
+#         if not model_dict:
+#             return jsonify({"error": "No suitable models found"}), 404
+
+#         return jsonify(model_dict)
     
-
-
-
-
-
-
-
-
-
-
-
-
-    except Exception as e:
-        print(f"Error in find_models_to_train: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+#     except Exception as e:
+#         print(f"Error in find_models_to_train: {e}")
+#         return jsonify({"error": "Internal server error"}), 500
+            
