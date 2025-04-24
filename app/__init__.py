@@ -30,7 +30,7 @@ def create_app():
     app.register_blueprint(gemini_api_bp, url_prefix='/gemini')
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
-    # print("Registered URLs:")
-    # for rule in app.url_map.iter_rules():
-    #     print(rule)
+#     print("Registered URLs:")
+#     for rule in app.url_map.iter_rules():
+#         print(rule)
     return app

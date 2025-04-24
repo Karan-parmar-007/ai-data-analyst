@@ -1,17 +1,18 @@
 from dotenv import load_dotenv
 import os
-import google.generativeai as genai  # Corrected import
+from google import genai  # Updated import
 from typing import List, Dict
 import json
 import logging
 from app.models.datasets import DatasetModel
+from app.models.classification_model import ClassificationModel
 import pandas as pd
 import io
 import re
-from flask import jsonify   
+from flask import jsonify
+
 
 dataset_model = DatasetModel()
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,10 +23,11 @@ class GeminiFunctions:
     def __init__(self):
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
         self.dataset_model = DatasetModel()
+        self.classification_model = ClassificationModel()
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set.")
         try:
-            genai.configure(api_key=self.gemini_api_key)
+            self.client = genai.Client(api_key=self.gemini_api_key)  # Create client instance
         except Exception as e:
             logger.error(f"Error configuring Gemini API: {e}")
             raise
@@ -40,8 +42,7 @@ class GeminiFunctions:
         Values: {', '.join(unique_values)}
         """
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(prompt)
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=prompt)
             response_text = response.text.strip()
             logger.info(f"Gemini Response: {response_text}")
             classified_dict = json.loads(response_text)
@@ -62,8 +63,7 @@ class GeminiFunctions:
         Values: {', '.join(unique_values)}
         """
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(prompt)
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=prompt)
             response_text = response.text.strip()
             logger.info(f"Gemini Response: {response_text}")
             
@@ -149,12 +149,11 @@ class GeminiFunctions:
             - "naive_bayes"
             - "regression_models"
             '''
-       
+
             print(prompt)  # Debugging
 
             # Send request to Gemini
-            model = genai.GenerativeModel('gemini-1.5-flash')  # Adjust model name as needed
-            response = model.generate_content(prompt)
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=prompt)
             response_text = response.text.strip()
             print(response_text)  # Debugging
 
@@ -238,8 +237,7 @@ class GeminiFunctions:
             print(prompt)  # Debugging
 
             # Send request to Gemini
-            model = genai.GenerativeModel('gemini-1.5-flash')  # Adjust model name as needed
-            response = model.generate_content(prompt)
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=prompt)
             response_text = response.text.strip()
             print(response_text)  # Debugging
 
@@ -264,8 +262,143 @@ class GeminiFunctions:
         except Exception as e:
             print(f"Error in get_type_of_models_for_one_type: {e}")
             return None
-
-
         
 
-    
+    def recommend_models_for_dataset(self, dataset_id):
+        if not dataset_id:
+            print("No dataset_id provided.")
+            return None
+
+        try:
+            # Step 1: Fetch all classification names and associated models
+            classifications_with_models = self.classification_model.get_all_classifications_with_models()
+            print("Fetched classifications with models:", classifications_with_models)
+
+            if not classifications_with_models:
+                print("No classifications with models found.")
+                return None
+
+            # Step 2: Fetch dataset metadata
+            dataset_info = self.dataset_model.get_dataset(dataset_id)
+            if not dataset_info:
+                print("No dataset metadata found.")
+                return None
+
+            column_datatypes = dataset_info.get('datatype_of_each_column', {})
+            usage_of_each_column = dataset_info.get('usage_of_each_column', {})
+            dataset_description = dataset_info.get('dataset_description', '')
+            user_goal = dataset_info.get('what_user_wants_to_do', '')
+            target_column = dataset_info.get('target_column', '')
+            dataset_csv = self.dataset_model.get_dataset_csv(dataset_id)
+            df = self.gridout_to_dataframe(dataset_csv)
+
+            if df is None or df.empty:
+                print("DataFrame is empty or None.")
+                return None
+
+            first_ten_rows = df.head(10)
+            shape = df.shape
+
+            # Step 3: Ask Gemini for which classification types are suitable
+            classification_prompt = f'''
+            You have been provided with the following dataset details:
+
+            - **Dataset Description:** {dataset_description}
+            - **Columns & Data Types:** {', '.join([f"{col}: {dtype}" for col, dtype in column_datatypes.items()])}
+            - **Column Usage Descriptions:** {usage_of_each_column}
+            - **User's Goal:** {user_goal}
+            - **Target Column:** {target_column}
+            - **First 10 Rows of the Dataset:**
+            {first_ten_rows.to_string()}
+            - **Dataset Shape (Rows, Columns):** {shape}
+
+            Based on the above information, recommend the most suitable high-level model categories.
+
+            Return a JSON object:
+            {{ "models": ["Regression", "Classification"] }}
+
+            Do not include any specific models. Only use these exact category names:
+            - "Regression"
+            - "Classification"
+            - "Clustering"
+            - "NaiveBayes"
+            '''
+
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=classification_prompt)
+            print("Gemini classification response:", response)
+            classification_response = response.text.strip()
+            match = re.search(r'\{.*\}', classification_response, re.DOTALL)
+
+            if not match:
+                print("No JSON found in classification response")
+                return None
+
+            classification_json = json.loads(match.group(0))
+            selected_classifications = classification_json.get("models", [])
+            print("Selected classifications from Gemini:", selected_classifications)
+
+            final_recommendations = {}
+
+            # Step 4: For each selected classification, ask Gemini to pick relevant models
+            for classification in selected_classifications:
+                # Get the exact classification name from our database
+                db_classification = next((k for k in classifications_with_models.keys() if k.lower() == classification.lower()), None)
+                if not db_classification:
+                    print(f"Classification {classification} not found in database")
+                    continue
+
+                model_list = list(classifications_with_models[db_classification].keys())
+                print(f"Models available under classification '{db_classification}':", model_list)
+
+                if not model_list:
+                    continue
+
+                model_prompt = f'''
+                You have been provided with the following dataset details:
+
+                - **Dataset Description:** {dataset_description}
+                - **Columns & Data Types:** {', '.join([f"{col}: {dtype}" for col, dtype in column_datatypes.items()])}
+                - **Column Usage Descriptions:** {usage_of_each_column}
+                - **User's Goal:** {user_goal}
+                - **Target Column:** {target_column}
+                - **First 10 Rows of the Dataset:**
+                {first_ten_rows.to_string()}
+                - **Dataset Shape (Rows, Columns):** {shape}
+
+                From the given models list, select those expected to give more than 60% accuracy for achieving the user's goal.
+
+                Provided Model List: {model_list}
+
+                Return a JSON object:
+                {{ "models": ["LinearRegression", "AdaBoostRegressor"] }}
+
+                Do not include explanation. Only return models from the provided list.
+                '''
+
+                model_response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=model_prompt)
+                model_response_text = model_response.text.strip()
+                match = re.search(r'\{.*\}', model_response_text, re.DOTALL)
+
+                if match:
+                    try:
+                        models_json = json.loads(match.group(0))
+                        recommended_models = models_json.get("models", [])
+                        # Filter to only include models that exist in our database
+                        valid_models = [model for model in recommended_models if model in model_list]
+                        if valid_models:
+                            final_recommendations[db_classification] = valid_models
+                            print(f"Recommended models for '{db_classification}':", valid_models)
+                    except json.JSONDecodeError:
+                        print(f"Failed to decode JSON for classification {db_classification}")
+
+            print("Final recommendations:", final_recommendations)
+
+            if not final_recommendations:
+                print("No preferred models were found after filtering.")
+                return None
+
+            return final_recommendations
+
+        except Exception as e:
+            print(f"Error in recommend_models_for_dataset: {e}")
+            return None
