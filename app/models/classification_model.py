@@ -41,14 +41,56 @@ class ClassificationModel:
         return {"message": "Model added", "model_id": str(result.inserted_id)}
 
     def get_all_classifications_with_models(self):
-        classifications = self.classifications_collection.find()
-        result = {}
-        for classification in classifications:
-            models = self.models_collection.find({"classification_id": str(classification["_id"])})
-            result[classification["classification_name"]] = {
-                model["model_name"]: model["hyperparameters"] for model in models
-            }
-        return result
+        try:
+            classifications = self.classifications_collection.find()
+            result = []
+            for classification in classifications:
+                model_ids = classification.get("models", [])
+                if not model_ids:
+                    print(f"No model IDs for classification {classification.get('classification_name', 'unknown')}")
+                    result.append({
+                        "_id": str(classification["_id"]),
+                        "classification_name": classification["classification_name"],
+                        "models": []
+                    })
+                    continue
+                
+                try:
+                    model_object_ids = [ObjectId(model_id) for model_id in model_ids]
+                except Exception as e:
+                    print(f"Invalid model IDs in classification {classification.get('classification_name', 'unknown')}: {model_ids}, Error: {str(e)}")
+                    result.append({
+                        "_id": str(classification["_id"]),
+                        "classification_name": classification["classification_name"],
+                        "models": []
+                    })
+                    continue
+                
+                models = self.models_collection.find({"_id": {"$in": model_object_ids}})
+                models_data = []
+                for model in models:
+                    if not model.get("model_name"):
+                        print(f"Model {str(model['_id'])} missing model_name")
+                        continue
+                    models_data.append({
+                        "model_id": str(model["_id"]),
+                        "model_name": model["model_name"],
+                        "hyperparameters": model.get("hyperparameters", {})
+                    })
+                
+                if not models_data:
+                    print(f"No models found for IDs {model_ids} in classification {classification.get('classification_name', 'unknown')}")
+                
+                result.append({
+                    "_id": str(classification["_id"]),
+                    "classification_name": classification["classification_name"],
+                    "models": models_data
+                })
+            
+            return {"classifications": result}
+        except Exception as e:
+            print(f"Error fetching classifications: {str(e)}")
+            return {"classifications": [], "error": f"Failed to fetch classifications: {str(e)}"}
 
     def get_models_for_classification(self, classification_id):
         models = self.models_collection.find({"classification_id": classification_id})
