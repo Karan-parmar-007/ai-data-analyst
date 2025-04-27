@@ -508,3 +508,89 @@ class GeminiFunctions:
         except Exception as e:
             print(f"Error in get_hyperparameters: {e}")
             return None
+        
+    def chat_with_pdf(self, dataset_id, question):
+        if not dataset_id or not question:
+            return None
+
+        try:
+            # Fetch dataset metadata
+            dataset_info = self.dataset_model.get_dataset(dataset_id)
+            if not dataset_info:
+                return None
+
+            # Extract relevant fields
+            column_datatypes = dataset_info.get('datatype_of_each_column', {})
+            usage_of_each_column = dataset_info.get('usage_of_each_column', {})
+            dataset_description = dataset_info.get('dataset_description', '')
+            user_goal = dataset_info.get('what_user_wants_to_do', '')
+            target_column = dataset_info.get('target_column', '')
+            dataset_csv = self.dataset_model.get_dataset_csv(dataset_id)
+
+            df = self.gridout_to_dataframe(dataset_csv)
+            if df is None or df.empty:
+                return None
+
+            first_ten_rows = df.head(10)  
+            shape = df.shape
+
+            # Construct prompt for Gemini
+            prompt = f'''
+            You have been provided with the following dataset details:
+
+            - **Dataset Description:** {dataset_description}
+            - **Columns & Data Types:** {', '.join([f"{col}: {dtype}" for col, dtype in column_datatypes.items()])}
+            - **Column Usage Descriptions:** {usage_of_each_column}
+            - **User's Goal:** {user_goal}
+            - **Target Column:** {target_column}
+            - **First 10 Rows of the Dataset:**
+            {first_ten_rows.to_string()}
+            - **Dataset Shape (Rows, Columns):** {shape}
+
+            Based on the above information, answer the following question:
+
+            **Question:** {question}
+
+            Return a JSON object:
+            
+                {{
+                    "answer": "Your answer here"
+                }}
+                
+                Do not include any explanation or extra text. Only return the JSON object.
+                
+                Example:
+                
+                {{
+                    "answer": "The average value of column X is 50."
+                }}
+                
+                Please provide a detailed answer to the question.
+                
+                '''
+            
+            print(prompt)  # Debugging
+            # Send request to Gemini
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=prompt)
+            response_text = response.text.strip()
+            print(response_text)  # Debugging
+            # Attempt to extract JSON object
+            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+                try:
+                    answer = json.loads(json_str)
+                    if isinstance(answer, dict) and "answer" in answer:
+                        return answer["answer"]
+                    else:
+                        print(f"Unexpected JSON format: {json_str}")
+                        return None
+                except json.JSONDecodeError:
+                    print(f"Failed to parse extracted JSON: {json_str}")
+                    return None
+            else:
+                print(f"No JSON object found in response: {response_text}")
+                return None
+        except Exception as e:
+            print(f"Error in chat_with_pdf: {e}")
+            return None

@@ -9,7 +9,6 @@ import re
 from app.utils.gemini import GeminiFunctions
 from bson import ObjectId
 
-
 dataset_model = DatasetModel()
 
 def gridout_to_dataframe(grid_out):
@@ -119,4 +118,29 @@ def recommend_preprocessing():
         print(f"Error in recommend_preprocessing: {e}")
         return jsonify({"error": "Internal server error"}), 500
     
-          
+@gemini_api_bp.route('/chat_with_dataset', methods=['POST'])
+def chat_with_dataset():    
+    """
+    API endpoint to chat with the dataset using Gemini.
+    Expects JSON payload with dataset_id and user_query.
+    Returns a JSON object with the response from Gemini.
+    """
+    # Get request data
+    data = request.json
+    dataset_id = data.get('dataset_id')
+    user_query = data.get('user_query')
+
+    # Validate input
+    if not all([dataset_id, user_query]):
+        return jsonify({"error": "Missing required parameters: dataset_id, user_query"}), 400
+
+    try:
+        gemini_funnction = GeminiFunctions()
+        answer = gemini_funnction.chat_with_pdf(dataset_id, user_query)
+        if not answer:
+            return jsonify({"error": "No answer found"}), 404
+        return jsonify({"answer": answer}), 200
+    except Exception as e:
+        print(f"Error in chat_with_dataset: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    
