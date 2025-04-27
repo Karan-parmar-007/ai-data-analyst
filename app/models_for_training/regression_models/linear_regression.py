@@ -83,6 +83,7 @@ def linear_regression(
 
         # Store the artifact using the DatasetModel's store_model_artifact method.
         dataset_model = DatasetModel()
+        # Inside linear_regression
         store_response = dataset_model.store_model_artifact(dataset_id, artifact_package)
 
         logging.info(f"LinearRegression trained in {train_time:.2f} seconds. Artifacts stored: {store_response}")
@@ -96,8 +97,8 @@ def linear_regression(
                 "train_r2": train_r2,
                 "test_r2": test_r2,
             },
-            "artifact_store_response": store_response,
-            "trained_model": model  # Optionally return the model object as well.
+            "artifact_store_response": store_response,  # Directly return the model_file_id
+            "trained_model": model
         }
 
     except Exception as e:

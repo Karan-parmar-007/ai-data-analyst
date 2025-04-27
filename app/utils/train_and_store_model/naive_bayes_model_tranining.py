@@ -1,8 +1,8 @@
-from app.models_for_training.naive_bayes.gaussian_naive_bayes import gaussian_naive_bayes
-from app.models_for_training.naive_bayes.bernoulli_naive_bayes import bernoulli_naive_bayes
-from app.models_for_training.naive_bayes.categorical_naive_bayes import categorical_naive_bayes
-from app.models_for_training.naive_bayes.complement_naive_bayes import complement_naive_bayes
-from app.models_for_training.naive_bayes.multinomial_naive_bayes import multinomial_naive_bayes
+from app.models_for_training.naive_bayes.gaussian_naive_bayes import gaussian_nb
+from app.models_for_training.naive_bayes.bernoulli_naive_bayes import bernoulli_nb
+from app.models_for_training.naive_bayes.categorical_naive_bayes import categorical_nb
+from app.models_for_training.naive_bayes.complement_naive_bayes import complement_nb
+from app.models_for_training.naive_bayes.multinomial_naive_bayes import multinomial_nb
 
 class NaiveBayesModelTraining:
     def __init__(self, dataset_id: str, X_train, X_test, y_train, y_test):
@@ -14,7 +14,7 @@ class NaiveBayesModelTraining:
 
     def train_model(self, model_name: str, hyperparameters: dict):
         if model_name == "GaussianNB":
-            return gaussian_naive_bayes(
+            return gaussian_nb(
                 self.dataset_id,
                 self.X_train,
                 self.X_test,
@@ -24,7 +24,7 @@ class NaiveBayesModelTraining:
                 var_smoothing=hyperparameters.get('var_smoothing', 1e-9)
             )
         elif model_name == "BernoulliNB":
-            return bernoulli_naive_bayes(
+            return bernoulli_nb(
                 self.dataset_id,
                 self.X_train,
                 self.X_test,
@@ -36,7 +36,7 @@ class NaiveBayesModelTraining:
                 class_prior=hyperparameters.get('class_prior', None)
             )
         elif model_name == "CategoricalNB":
-            return categorical_naive_bayes(
+            return categorical_nb(
                 self.dataset_id,
                 self.X_train,
                 self.X_test,
@@ -48,7 +48,7 @@ class NaiveBayesModelTraining:
                 min_categories=hyperparameters.get('min_categories', None)
             )
         elif model_name == "ComplementNB":
-            return complement_naive_bayes(
+            return complement_nb(
                 self.dataset_id,
                 self.X_train,
                 self.X_test,
@@ -60,7 +60,7 @@ class NaiveBayesModelTraining:
                 norm=hyperparameters.get('norm', False)
             )
         elif model_name == "MultinomialNB":
-            return multinomial_naive_bayes(
+            return multinomial_nb(
                 self.dataset_id,
                 self.X_train,
                 self.X_test,

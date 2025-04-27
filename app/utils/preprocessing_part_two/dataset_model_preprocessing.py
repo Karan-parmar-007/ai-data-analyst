@@ -148,7 +148,7 @@ class DataTransformation:
                     ('pca', PCA(n_components=0.95))
                 ])
 
-            logging.info("Preprocessing pipeline built successfully.")
+            # logging.info("Preprocessing pipeline built successfully.")
             return preprocessor
 
         except Exception as e:
@@ -162,7 +162,7 @@ class DataTransformation:
         """
         try:
             preprocessor = self.get_preprocessing_pipeline()
-            logging.info("Transforming dataset using the preprocessor pipeline.")
+            # logging.info("Transforming dataset using the preprocessor pipeline.")
             transformed_data = preprocessor.fit_transform(df)
             return preprocessor, transformed_data
         except Exception as e:
@@ -193,7 +193,7 @@ class DataTransformation:
             # Apply transformation on features.
             preprocessor, transformed_data = self.transform_dataset(X)
             transformed_df = pd.DataFrame(transformed_data)
-            logging.info("Dataset transformation complete. Sample output: %s", str(transformed_df.head()))
+            # logging.info("Dataset transformation complete. Sample output: %s", str(transformed_df.head()))
 
             # Perform train-test split based on metadata percentage.
             test_pct = self.metadata.get("test_dataset_percentage", 30) / 100.0
@@ -211,8 +211,8 @@ class DataTransformation:
             # Store only the preprocessor pipeline artifact.
             # Note: We pass an empty DataFrame to indicate that we're not storing the transformed dataset.
             artifacts = self.ds_model.store_artifacts(dataset_id, preprocessor)
-            logging.info("Artifacts stored in DB: %s", artifacts)
-            print(X_train, X_test, y_train, y_test)
+            logging.info("data transformation done: %s", artifacts)
+            # print(X_train, X_test, y_train, y_test)
 
             return X_train, X_test, y_train, y_test
 

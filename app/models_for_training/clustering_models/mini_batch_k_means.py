@@ -1,6 +1,8 @@
 import sys
 import time
 import pickle
+# import cuml.accel
+# cuml.accel.install()
 import numpy as np
 import pandas as pd
 from sklearn.cluster import MiniBatchKMeans

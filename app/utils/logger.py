@@ -10,14 +10,18 @@ LOG_FILE = os.path.join(LOG_DIR, "app.log")
 logging.basicConfig(
     filename=LOG_FILE,
     filemode="a",
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    # format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(levelname)s - %(message)s",
+
     level=logging.INFO
 )
 
 # Also output logs to console.
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_formatter = logging.Formatter("%(levelname)s - %(message)s")
+
 console_handler.setFormatter(console_formatter)
 logging.getLogger().addHandler(console_handler)
 

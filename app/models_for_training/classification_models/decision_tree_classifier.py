@@ -3,6 +3,8 @@ import time
 import pickle
 from bson import ObjectId
 import numpy as np
+import cuml.accel
+cuml.accel.install()
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score

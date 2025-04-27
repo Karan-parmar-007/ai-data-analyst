@@ -2,6 +2,8 @@ import sys
 import time
 import pickle
 import numpy as np
+# import cuml.accel
+# cuml.accel.install()
 import pandas as pd
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score

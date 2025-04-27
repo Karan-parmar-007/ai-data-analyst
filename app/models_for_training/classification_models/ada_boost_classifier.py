@@ -1,3 +1,5 @@
+import cuml.accel
+cuml.accel.install()
 import sys
 import time
 import pickle

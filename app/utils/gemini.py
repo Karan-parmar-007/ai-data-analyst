@@ -120,6 +120,7 @@ class GeminiFunctions:
 
             # Construct prompt for Gemini
             prompt = f'''
+            RESPOND ONLY WITH JSON OBJECT. DO NOT INCLUDE ANY EXPLANATION OR EXTRA TEXT.
             You have been provided with the following dataset details:
 
             - **Dataset Description:** {dataset_description}
@@ -271,13 +272,21 @@ class GeminiFunctions:
             return None
 
         try:
-            # Step 1: Fetch all classification names and associated models
+            # Step 1: Fetch classifications with models
             classifications_with_models = self.classification_model.get_all_classifications_with_models()
-            print("Fetched classifications with models:", classifications_with_models)
-
-            if not classifications_with_models:
+            if not classifications_with_models or 'classifications' not in classifications_with_models:
                 print("No classifications with models found.")
                 return None
+            print("Fetched classifications with models:", classifications_with_models)
+
+            # Create mappings for easier access
+            classification_map = {}
+            classification_models_map = {}
+            
+            for classification in classifications_with_models['classifications']:
+                name = classification['classification_name']
+                classification_map[name.lower()] = name
+                classification_models_map[name] = [model['model_name'] for model in classification['models']]
 
             # Step 2: Fetch dataset metadata
             dataset_info = self.dataset_model.get_dataset(dataset_id)
@@ -290,9 +299,10 @@ class GeminiFunctions:
             dataset_description = dataset_info.get('dataset_description', '')
             user_goal = dataset_info.get('what_user_wants_to_do', '')
             target_column = dataset_info.get('target_column', '')
+
+            # Fetch dataset CSV and convert to DataFrame
             dataset_csv = self.dataset_model.get_dataset_csv(dataset_id)
             df = self.gridout_to_dataframe(dataset_csv)
-
             if df is None or df.empty:
                 print("DataFrame is empty or None.")
                 return None
@@ -300,8 +310,9 @@ class GeminiFunctions:
             first_ten_rows = df.head(10)
             shape = df.shape
 
-            # Step 3: Ask Gemini for which classification types are suitable
+            # Step 3: Ask Gemini for suitable classifications
             classification_prompt = f'''
+            RESPOND ONLY WITH JSON OBJECT. DO NOT INCLUDE ANY EXPLANATION OR EXTRA TEXT.
             You have been provided with the following dataset details:
 
             - **Dataset Description:** {dataset_description}
@@ -318,7 +329,7 @@ class GeminiFunctions:
             Return a JSON object:
             {{ "models": ["Regression", "Classification"] }}
 
-            Do not include any specific models. Only use these exact category names:
+            Only use these exact category names:
             - "Regression"
             - "Classification"
             - "Clustering"
@@ -327,9 +338,9 @@ class GeminiFunctions:
 
             response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=classification_prompt)
             print("Gemini classification response:", response)
-            classification_response = response.text.strip()
-            match = re.search(r'\{.*\}', classification_response, re.DOTALL)
 
+            # Extract JSON safely
+            match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
             if not match:
                 print("No JSON found in classification response")
                 return None
@@ -338,59 +349,68 @@ class GeminiFunctions:
             selected_classifications = classification_json.get("models", [])
             print("Selected classifications from Gemini:", selected_classifications)
 
+            if not selected_classifications:
+                print("No classifications selected.")
+                return None
+
             final_recommendations = {}
 
-            # Step 4: For each selected classification, ask Gemini to pick relevant models
+            # Step 4: For each selected classification, ask Gemini to pick models
             for classification in selected_classifications:
-                # Get the exact classification name from our database
-                db_classification = next((k for k in classifications_with_models.keys() if k.lower() == classification.lower()), None)
+                db_classification = classification_map.get(classification.lower())
                 if not db_classification:
-                    print(f"Classification {classification} not found in database")
+                    print(f"Classification '{classification}' not found in database")
                     continue
 
-                model_list = list(classifications_with_models[db_classification].keys())
-                print(f"Models available under classification '{db_classification}':", model_list)
-
+                model_list = classification_models_map.get(db_classification, [])
                 if not model_list:
+                    print(f"No models found under classification '{db_classification}'")
                     continue
+                print(f"Models under '{db_classification}':", model_list)
 
                 model_prompt = f'''
-                You have been provided with the following dataset details:
+                    RESPOND ONLY WITH A VALID JSON OBJECT. DO NOT INCLUDE MARKDOWN, BACKTICKS, OR EXTRA TEXT.
+                    You have been provided with the following dataset details:
 
-                - **Dataset Description:** {dataset_description}
-                - **Columns & Data Types:** {', '.join([f"{col}: {dtype}" for col, dtype in column_datatypes.items()])}
-                - **Column Usage Descriptions:** {usage_of_each_column}
-                - **User's Goal:** {user_goal}
-                - **Target Column:** {target_column}
-                - **First 10 Rows of the Dataset:**
-                {first_ten_rows.to_string()}
-                - **Dataset Shape (Rows, Columns):** {shape}
+                    - **Dataset Description:** {dataset_description}
+                    - **Columns & Data Types:** {', '.join([f"{col}: {dtype}" for col, dtype in column_datatypes.items()])}
+                    - **Column Usage Descriptions:** {usage_of_each_column}
+                    - **User's Goal:** {user_goal}
+                    - **Target Column:** {target_column}
+                    - **First 10 Rows of the Dataset:**
+                    {first_ten_rows.to_string()}
+                    - **Dataset Shape (Rows, Columns):** {shape}
+                    - **Dataset Statistics:**
+                    {df.describe().to_string()}
 
-                From the given models list, select those expected to give more than 60% accuracy for achieving the user's goal.
+                    The task is to predict the target column ({target_column}). From the provided model list, select models expected to perform well for this dataset.
 
-                Provided Model List: {model_list}
+                    Provided Model List: {model_list}
 
-                Return a JSON object:
-                {{ "models": ["LinearRegression", "AdaBoostRegressor"] }}
+                    Return a JSON object:
+                    {{ "models": ["model_name_1", "model_name_2"] }}
 
-                Do not include explanation. Only return models from the provided list.
-                '''
+                    Only return models from the provided list. Ensure the response is non-empty.
+                    '''
 
                 model_response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=model_prompt)
-                model_response_text = model_response.text.strip()
-                match = re.search(r'\{.*\}', model_response_text, re.DOTALL)
+                print("Gemini model response:", model_response)
+                match = re.search(r'\{.*\}', model_response.text.strip(), re.DOTALL)
+                if not match:
+                    print(f"No JSON found for models under classification '{db_classification}'")
+                    continue
 
-                if match:
-                    try:
-                        models_json = json.loads(match.group(0))
-                        recommended_models = models_json.get("models", [])
-                        # Filter to only include models that exist in our database
-                        valid_models = [model for model in recommended_models if model in model_list]
-                        if valid_models:
-                            final_recommendations[db_classification] = valid_models
-                            print(f"Recommended models for '{db_classification}':", valid_models)
-                    except json.JSONDecodeError:
-                        print(f"Failed to decode JSON for classification {db_classification}")
+                try:
+                    models_json = json.loads(match.group(0))
+                    recommended_models = models_json.get("models", [])
+                    # Keep only valid models
+                    valid_models = [model for model in recommended_models if model in model_list]
+                    if valid_models:
+                        final_recommendations[db_classification] = valid_models
+                        print(f"Recommended models for '{db_classification}':", valid_models)
+                except json.JSONDecodeError:
+                    print(f"Failed to decode model JSON for classification '{db_classification}'")
+                    continue
 
             print("Final recommendations:", final_recommendations)
 
@@ -403,6 +423,7 @@ class GeminiFunctions:
         except Exception as e:
             print(f"Error in recommend_models_for_dataset: {e}")
             return None
+
 
 
     def get_hyperparameters(self, dataset_id, model_id):

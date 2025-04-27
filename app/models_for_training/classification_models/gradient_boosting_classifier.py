@@ -1,4 +1,6 @@
 import sys
+import cuml.accel
+cuml.accel.install()
 import time
 import pickle
 from bson import ObjectId

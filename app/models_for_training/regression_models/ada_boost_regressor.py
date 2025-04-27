@@ -3,6 +3,8 @@ import time
 import pickle
 from bson import ObjectId
 import numpy as np
+# import cuml.accel
+# cuml.accel.install()
 import pandas as pd
 from sklearn.ensemble import AdaBoostRegressor
 from sklearn.metrics import mean_squared_error, r2_score
@@ -99,7 +101,7 @@ def adaboost_regressor(
                 "train_r2": train_r2,
                 "test_r2": test_r2
             },
-            "artifact_store_response": store_response,
+            "artifact_store_response": {"model_file_id": store_response},  # Wrap the model_file_id in a dictionary
             "trained_model": model  # Optionally return the model object as well.
         }
 

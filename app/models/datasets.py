@@ -83,7 +83,7 @@ class DatasetModel:
                 ]
             )
 
-            return True
+            return config_file_id  # Return the file ID instead of True
 
         except Exception as e:
             print(f"Error storing artifacts: {e}")
@@ -123,7 +123,7 @@ class DatasetModel:
                 {"_id": ObjectId(dataset_id)},
                 {"$push": {"models": model_artifact}}
             )
-            return True
+            return model_file_id  # Return the model_file_id instead of True
 
         except Exception as e:
             print(f"Error storing model artifact: {e}")

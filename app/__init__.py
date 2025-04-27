@@ -20,9 +20,9 @@ def create_app():
     from app.blueprints.gemini_apis import gemini_api_bp
     from app.blueprints.admin import admin_bp
     with app.app_context():
-         print("Initializing scheduler...")
+        #  print("Initializing scheduler...")
          init_scheduler(app)
-         print("Scheduler initialized successfully!")
+        #  print("Scheduler initialized successfully!")
 
     app.register_blueprint(users_bp, url_prefix='/user')
     app.register_blueprint(datasets_bp, url_prefix='/dataset')

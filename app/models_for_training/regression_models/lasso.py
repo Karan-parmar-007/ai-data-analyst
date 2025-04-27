@@ -114,7 +114,7 @@ def lasso(
                 "train_r2": train_r2,
                 "test_r2": test_r2
             },
-            "artifact_store_response": store_response,
+            "artifact_store_response": {"model_file_id": store_response},
             "trained_model": model  # Optionally return the model object as well.
         }
 

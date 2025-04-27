@@ -1,6 +1,8 @@
 import sys
 import time
 import pickle
+import cuml.accel
+cuml.accel.install()
 from bson import ObjectId
 import numpy as np
 import pandas as pd

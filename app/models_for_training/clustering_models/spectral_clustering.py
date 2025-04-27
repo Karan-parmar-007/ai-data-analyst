@@ -3,6 +3,8 @@ import time
 import pickle
 import numpy as np
 import pandas as pd
+# import cuml.accel
+# cuml.accel.install()
 from sklearn.cluster import SpectralClustering
 from sklearn.metrics import silhouette_score
 from app.models.datasets import DatasetModel
