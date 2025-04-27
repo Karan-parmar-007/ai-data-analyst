@@ -27,22 +27,6 @@ def start_building():
     except Exception as e:
         return jsonify({"error": str(e)}), 500    
 
-# @model_building_bp.route('/get-preferred-model', methods=['GET'])  # Use GET for query params
-# def get_preferred_model():
-#     gemini_function = GeminiFunctions()
-#     try:
-#         dataset_id = request.args.get("dataset_id")
-#         if not dataset_id:
-#             return jsonify({"error": "dataset_id is required"}), 400
-
-#         final_suggestion = gemini_function.recommend_models_for_dataset(dataset_id)
-#         if not final_suggestion:
-#             return jsonify({"error": "No preferred model found"}), 404
-
-#         return jsonify({"preferred_model": final_suggestion}), 200
-
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
     
 @model_building_bp.route('/get-preferred-model', methods=['GET'])
 def get_preferred_model():
@@ -55,4 +39,15 @@ def get_preferred_model():
 
     return jsonify(model_recommendations), 200
 
+@model_building_bp.route('/get-model-hyperparameters', methods=['GET'])
+def get_model_hyperparameters():
+    dataset_id = request.args.get('dataset_id')
+    model_id = request.args.get('model_id')
+    if not dataset_id or not model_id:
+        return jsonify({"error": "dataset_id and model_name are required"}), 400
+    gemini_function = GeminiFunctions()
+    hyperparameters = gemini_function.get_hyperparameters(dataset_id, model_id)
+    if not hyperparameters:
+        return jsonify({"error": "No hyperparameters found"}), 404
 
+    return jsonify(hyperparameters), 200

@@ -6,6 +6,7 @@ import json
 import logging
 from app.models.datasets import DatasetModel
 from app.models.classification_model import ClassificationModel
+from app.models.model_hyperparameters import ModelHyperparameters
 import pandas as pd
 import io
 import re
@@ -401,4 +402,109 @@ class GeminiFunctions:
 
         except Exception as e:
             print(f"Error in recommend_models_for_dataset: {e}")
+            return None
+
+
+    def get_hyperparameters(self, dataset_id, model_id):
+        if not dataset_id or not model_id:
+            return None
+
+        try:
+            # Fetch dataset metadata
+            dataset_info = self.dataset_model.get_dataset(dataset_id)
+            if not dataset_info:
+                return None
+
+            # Extract relevant fields
+            column_datatypes = dataset_info.get('datatype_of_each_column', {})
+            usage_of_each_column = dataset_info.get('usage_of_each_column', {})
+            dataset_description = dataset_info.get('dataset_description', '')
+            user_goal = dataset_info.get('what_user_wants_to_do', '')
+            target_column = dataset_info.get('target_column', '')
+            dataset_csv = self.dataset_model.get_dataset_csv(dataset_id)
+
+            df = self.gridout_to_dataframe(dataset_csv)
+            if df is None or df.empty:
+                return None
+
+            first_ten_rows = df.head(10)  
+            shape = df.shape
+
+            model_hyperparameters_model = ModelHyperparameters()
+            model_hyperparameters = model_hyperparameters_model.get_hyperparameters_for_model(model_id)
+            if not model_hyperparameters:
+                print("No hyperparameters found for the model.")
+                return None
+            model_name = model_hyperparameters.get("model_name", "")
+            all_hyperparameters = model_hyperparameters.get("hyperparameters", {})
+            # Construct prompt for Gemini
+            prompt = f'''
+            You have been provided with the following dataset details:
+
+            - **Dataset Description:** {dataset_description}
+            - **Columns & Data Types:** {', '.join([f"{col}: {dtype}" for col, dtype in column_datatypes.items()])}
+            - **Column Usage Descriptions:** {usage_of_each_column}
+            - **User's Goal:** {user_goal}
+            - **Target Column:** {target_column}
+            - **First 10 Rows of the Dataset:**
+            {first_ten_rows.to_string()}
+            - **Dataset Shape (Rows, Columns):** {shape}
+
+            Based on the above information, recommend the most all hyperparameters for the model '{model_name}'.
+
+            Return a JSON object:
+            
+            {{
+                "hyperparameters": {{
+                    "param1": value1,
+                    "param2": value2,
+                    ...
+                }}
+            }}
+
+            Do not include any explanation or extra text. Only return the JSON object.
+            
+            The available hyperparameters are:
+            
+                '{all_hyperparameters}'
+                
+                
+                Please provide a detailed list of hyperparameters and their expected values.
+                
+                Example:
+                
+                {{
+                    "n_estimators": 100,
+                    "max_depth": 10,
+                    "min_samples_split": 2,
+                    "min_samples_leaf": 1,
+                    "
+                    "learning_rate": 0.01,
+                    "alpha": 0.1
+                }}
+            '''
+            print(prompt)  # Debugging
+            # Send request to Gemini
+            response = self.client.models.generate_content(model="gemini-2.0-flash-001", contents=prompt)
+            response_text = response.text.strip()
+            print(response_text)  # Debugging
+            # Attempt to extract JSON object
+            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+                try:
+                    hyperparameters = json.loads(json_str)
+                    if isinstance(hyperparameters, dict) and "hyperparameters" in hyperparameters:
+                        return hyperparameters["hyperparameters"]
+                    else:
+                        print(f"Unexpected JSON format: {json_str}")
+                        return None
+                except json.JSONDecodeError:
+                    print(f"Failed to parse extracted JSON: {json_str}")
+                    return None
+            else:
+                print(f"No JSON object found in response: {response_text}")
+                return None
+        except Exception as e:
+            print(f"Error in get_hyperparameters: {e}")
             return None
