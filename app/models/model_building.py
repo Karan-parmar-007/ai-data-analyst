@@ -29,6 +29,7 @@ class ModelToBeBuilt:
             {
                 "_id": str(model["_id"]),
                 "dataset_id": str(model["dataset_id"]),
+                "classification_id": str(model["classification_id"]),
                 "model_name": model["model_name"],
                 "hyperparameters": model["hyperparameters"]
             }

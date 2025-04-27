@@ -152,6 +152,8 @@ def start_model_building():
                 
                 model_to_be_built.delete_model(dataset_id)
                 print(f"Dataset {dataset_id} model built successfully.")
+            else:
+                print(f"Failed to get training data for dataset {dataset_id}")
         except Exception as e:
             print(f"Error building model for dataset {dataset_id if dataset_id else 'unknown'}: {str(e)}")
 
