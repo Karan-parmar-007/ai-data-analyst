@@ -10,7 +10,7 @@ import numpy as np
 from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
 from app.models.model_building import ModelToBeBuilt
 from app.utils.preprocessing_part_two.dataset_model_preprocessing import DataTransformation
-from app.models.classification import ClassificationModel
+from app.models.classification_model import ClassificationModel
 
 
 _scheduler = None 
@@ -71,8 +71,26 @@ def start_model_building():
     
     for model in unbuilt_models:
         try:
-            classification_id = model["classification_id"]
+            # Initialize variables
+            dataset_id = None
+            classification_id = None
+            
+            # Check if required keys exist
+            if not isinstance(model, dict):
+                print(f"Invalid model data format: {model}")
+                continue
+                
+            if "dataset_id" not in model:
+                print(f"Missing dataset_id in model data: {model}")
+                continue
+                
             dataset_id = model["dataset_id"]
+            
+            if "classification_id" not in model:
+                print(f"Missing classification_id for dataset {dataset_id}")
+                continue
+                
+            classification_id = model["classification_id"]
             
             # Get classification details
             classification = classification_model.get_all_classifications_with_models()
@@ -135,7 +153,7 @@ def start_model_building():
                 model_to_be_built.delete_model(dataset_id)
                 print(f"Dataset {dataset_id} model built successfully.")
         except Exception as e:
-            print(f"Error building model for dataset {dataset_id}: {str(e)}")
+            print(f"Error building model for dataset {dataset_id if dataset_id else 'unknown'}: {str(e)}")
 
 
 
