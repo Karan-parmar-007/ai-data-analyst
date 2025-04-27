@@ -10,6 +10,7 @@ import numpy as np
 from app.models.datasets_to_be_preprocessed import DatasetsToBePreprocessedModel
 from app.models.model_building import ModelToBeBuilt
 from app.utils.preprocessing_part_two.dataset_model_preprocessing import DataTransformation
+from app.models.classification import ClassificationModel
 
 
 _scheduler = None 
@@ -65,12 +66,53 @@ def preprocess_dataset():
 def start_model_building():
     model_to_be_built = ModelToBeBuilt()
     dataset_model = DatasetModel()
-    unbuilt_datasets = model_to_be_built.get_unbuilt_model()
-    for dataset_id in unbuilt_datasets:
+    classification_model = ClassificationModel()
+    unbuilt_models = model_to_be_built.get_all_models()
+    
+    for model in unbuilt_models:
         try:
+            classification_id = model["classification_id"]
+            dataset_id = model["dataset_id"]
+            
+            # Get classification details
+            classification = classification_model.get_all_classifications_with_models()
+            classification_name = None
+            for cls in classification["classifications"]:
+                if cls["_id"] == classification_id:
+                    classification_name = cls["classification_name"]
+                    break
+            
+            if not classification_name:
+                print(f"Classification not found for ID: {classification_id}")
+                continue
+                
+            # Get training data
             data_transformation = DataTransformation(dataset_id)
             X_train, X_test, y_train, y_test = data_transformation.initiate_data_transformation()
+            
             if all(val is not None for val in (X_train, X_test, y_train, y_test)):
+                # Route to appropriate training module based on classification type
+                if classification_name.lower() == "classification":
+                    from app.utils.train_and_store_model.classidication_models_training import ClassificationModeTraining
+                    trainer = ClassificationModeTraining(dataset_id, X_train, X_test, y_train, y_test)
+                    # Get model details from classification
+                    for cls in classification["classifications"]:
+                        if cls["_id"] == classification_id:
+                            for model_data in cls["models"]:
+                                trainer.train_model(model_data["model_name"], model_data["hyperparameters"])
+                elif classification_name.lower() == "clustering":
+                    from app.utils.train_and_store_model.clustering_models_training import ClusteringModelTraining
+                    trainer = ClusteringModelTraining(dataset_id, X_train, X_test, y_train, y_test)
+                    # Similar model training logic for clustering
+                elif classification_name.lower() == "naive bayes":
+                    from app.utils.train_and_store_model.naive_bayes_model_tranining import NaiveBayesModelTraining
+                    trainer = NaiveBayesModelTraining(dataset_id, X_train, X_test, y_train, y_test)
+                    # Similar model training logic for naive bayes
+                elif classification_name.lower() == "regression":
+                    from app.utils.train_and_store_model.regression_model_training import RegressionModelTraining
+                    trainer = RegressionModelTraining(dataset_id, X_train, X_test, y_train, y_test)
+                    # Similar model training logic for regression
+                
                 model_to_be_built.delete_model(dataset_id)
                 print(f"Dataset {dataset_id} model built successfully.")
         except Exception as e:

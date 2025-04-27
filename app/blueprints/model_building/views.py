@@ -14,18 +14,44 @@ dataset_model = DatasetModel()
 classification_model = ClassificationModel()
 model_hyperparameters = ModelHyperparameters()
 
-@model_building_bp.route('/start-building', methods=['post'])
+@model_building_bp.route('/start-building', methods=['POST'])
 def start_building():
     try:
         data = request.get_json()
         dataset_id = data.get("dataset_id")
+        models = data.get("models", [])
+
         if not dataset_id:
-            return jsonify({"error": "datasetId is required"}), 400
-        model_to_be_build = ModelToBeBuilt()
-        model_to_be_build.create_model_building_model(dataset_id)
-        return jsonify({"message": "Model building started"}), 200
+            return jsonify({"error": "dataset_id is required"}), 400
+
+        if not models:
+            return jsonify({"error": "models are required"}), 400
+
+        model_to_be_built = ModelToBeBuilt()
+
+        inserted_models = []
+
+        for model in models:
+            model_name = model.get("model_type")
+            hyperparameters = model.get("hyperparameters", {})
+            classification_id = model.get("classification_id")
+
+            if not model_name:
+                continue  # Skip if model_name is missing
+
+            model_id = model_to_be_built.create_model(
+                dataset_id=dataset_id,
+                model_name=model_name,
+                classification_id=classification_id,
+                hyperparameters=hyperparameters
+            )
+            inserted_models.append(model_id)
+
+        return jsonify({"message": "Models building started", "inserted_model_ids": inserted_models}), 200
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500    
+        return jsonify({"error": str(e)}), 500
+
 
     
 @model_building_bp.route('/get-preferred-model', methods=['GET'])
