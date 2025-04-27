@@ -100,18 +100,37 @@ def start_model_building():
                         if cls["_id"] == classification_id:
                             for model_data in cls["models"]:
                                 trainer.train_model(model_data["model_name"], model_data["hyperparameters"])
+                
                 elif classification_name.lower() == "clustering":
                     from app.utils.train_and_store_model.clustering_models_training import ClusteringModelTraining
                     trainer = ClusteringModelTraining(dataset_id, X_train, X_test, y_train, y_test)
-                    # Similar model training logic for clustering
+                    # Get model details from classification
+                    for cls in classification["classifications"]:
+                        if cls["_id"] == classification_id:
+                            for model_data in cls["models"]:
+                                trainer.train_model(model_data["model_name"], model_data["hyperparameters"])
+                
                 elif classification_name.lower() == "naive bayes":
                     from app.utils.train_and_store_model.naive_bayes_model_tranining import NaiveBayesModelTraining
                     trainer = NaiveBayesModelTraining(dataset_id, X_train, X_test, y_train, y_test)
-                    # Similar model training logic for naive bayes
+                    # Get model details from classification
+                    for cls in classification["classifications"]:
+                        if cls["_id"] == classification_id:
+                            for model_data in cls["models"]:
+                                trainer.train_model(model_data["model_name"], model_data["hyperparameters"])
+                
                 elif classification_name.lower() == "regression":
                     from app.utils.train_and_store_model.regression_model_training import RegressionModelTraining
                     trainer = RegressionModelTraining(dataset_id, X_train, X_test, y_train, y_test)
-                    # Similar model training logic for regression
+                    # Get model details from classification
+                    for cls in classification["classifications"]:
+                        if cls["_id"] == classification_id:
+                            for model_data in cls["models"]:
+                                trainer.train_model(model_data["model_name"], model_data["hyperparameters"])
+                
+                else:
+                    print(f"Unsupported classification type: {classification_name}")
+                    continue
                 
                 model_to_be_built.delete_model(dataset_id)
                 print(f"Dataset {dataset_id} model built successfully.")
