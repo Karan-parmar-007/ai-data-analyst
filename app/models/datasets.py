@@ -174,15 +174,16 @@ class DatasetModel:
     def update_dataset(self, dataset_id: str, update_fields: dict) -> int:
         """Update specific fields of a dataset."""
 
+        existing = None  # Initialize existing to avoid UnboundLocalError
         if update_fields.get("start_preprocessing", False):
             existing = datasets_to_be_preprocessed_model.datasets_to_be_preprocessed_collection.find_one(
                 {"dataset_id": ObjectId(dataset_id)}
-        )
-        if not existing:
-            datasets_to_be_preprocessed_model.create_dataset_to_be_preprocessed(dataset_id)
-            print(f"Added dataset {dataset_id} to preprocessing queue")
-        else:
-            print(f"Dataset {dataset_id} already in preprocessing queue")
+            )
+            if not existing:
+                datasets_to_be_preprocessed_model.create_dataset_to_be_preprocessed(dataset_id)
+                print(f"Added dataset {dataset_id} to preprocessing queue")
+            else:
+                print(f"Dataset {dataset_id} already in preprocessing queue")
         result = self.datasets_collection.update_one(
             {"_id": ObjectId(dataset_id)},
             {"$set": update_fields},  # Use $set to update fields
